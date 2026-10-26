@@ -1,4 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="fr">
     <string name="app_name">Tennis Stats</string>
+
+    <!-- Common -->
+    <string name="action_back">Retour</string>
+    <string name="opponent_vs">vs %1$s</string>
+    <string name="opponent_level">Niveau&#160;: %1$s</string>
+    <string name="status_in_progress">En cours</string>
+    <string name="result_win">Victoire</string>
+    <string name="result_loss">Défaite</string>
+    <!-- "coup" + "s" when n ≠ 1 (see ShotCountText): French "one" also covers 0. -->
+    <plurals name="shot_count">
+        <item quantity="one">%d coup</item>
+        <item quantity="many">%d coups</item>
+        <item quantity="other">%d coups</item>
+    </plurals>
+
+    <!-- Opponent levels (functional spec §3.4); FFT rankings are displayed as their value -->
+    <string name="level_debutant">Débutant</string>
+    <string name="level_intermediaire">Intermédiaire</string>
+    <string name="level_avance">Avancé</string>
+    <string name="level_expert">Expert</string>
+    <string name="level_nc">Non classé</string>
+
+    <!-- Home -->
+    <string name="home_title">Tennis Stats</string>
+    <string name="home_resume_match">Reprendre le match</string>
+    <string name="home_finish_current_match">Terminez le match en cours avant d\'en démarrer un nouveau.</string>
+    <string name="home_recent_matches">Derniers matchs</string>
+    <string name="home_empty_title">Aucun match terminé pour le moment.</string>
+    <string name="home_empty_subtitle">Commencez par créer un nouveau match&#160;!</string>
+    <string name="home_new_match">Nouveau match</string>
+    <string name="home_date_description">Date</string>
+    <string name="home_shot_count_description">Nombre de coups</string>
+
+    <!-- New match -->
+    <string name="new_match_title">Nouveau match</string>
+    <string name="new_match_opponent_name">Nom de l\'adversaire</string>
+    <string name="new_match_opponent_name_placeholder">Ex&#160;: Jean Dupont</string>
+    <string name="new_match_opponent_level">Niveau (classement)</string>
+    <string name="new_match_opponent_level_placeholder">Sélectionner un niveau</string>
+    <string name="new_match_opponent_level_none">Aucun</string>
+    <string name="new_match_start">Démarrer</string>
+    <string name="new_match_creating" tools:ignore="TypographyEllipsis">Création...</string>
+    <string name="error_opponent_name_required">Le nom de l\'adversaire est requis.</string>
+    <string name="error_match_already_in_progress">Un match est déjà en cours. Terminez-le avant d\'en créer un nouveau.</string>
+    <string name="error_unexpected">Une erreur est survenue. Réessayez.</string>
 </resources>
