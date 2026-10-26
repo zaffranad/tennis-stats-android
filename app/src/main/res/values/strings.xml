@@ -46,4 +46,69 @@
     <string name="error_opponent_name_required">Le nom de l\'adversaire est requis.</string>
     <string name="error_match_already_in_progress">Un match est déjà en cours. Terminez-le avant d\'en créer un nouveau.</string>
     <string name="error_unexpected">Une erreur est survenue. Réessayez.</string>
+    <!-- Shot types (functional spec §3.3) -->
+    <string name="shot_type_serve">Service</string>
+    <string name="shot_type_forehand">Coup droit</string>
+    <string name="shot_type_backhand">Revers</string>
+    <string name="shot_type_volley">Volée</string>
+    <string name="shot_type_smash">Smash</string>
+    <string name="shot_type_lob">Lob</string>
+    <string name="shot_type_drop_shot">Amorti</string>
+
+    <!-- Shot outcomes (functional spec §3.3) -->
+    <string name="shot_outcome_in">En jeu</string>
+    <string name="shot_outcome_winner">Winner</string>
+    <string name="shot_outcome_ace">Ace</string>
+    <string name="shot_outcome_fault">Out</string>
+    <string name="shot_outcome_net">Filet</string>
+    <string name="shot_outcome_unforced_error">Faute</string>
+
+    <!-- Match screen -->
+    <string name="match_finish">Terminer</string>
+    <string name="match_more_options">Plus d\'options</string>
+    <string name="match_delete">Supprimer le match</string>
+    <string name="match_tab_input">Saisie</string>
+    <string name="match_tab_stats">Statistiques</string>
+    <string name="match_error_shot_not_saved">Impossible d\'enregistrer le coup</string>
+
+    <!-- Shot feed -->
+    <string name="feed_last_shot">Dernier coup (%1$d total)</string>
+    <string name="feed_undo">Annuler</string>
+    <string name="feed_empty">Aucun coup enregistré. Commencez à saisir&#160;!</string>
+    <string name="feed_serve_first">Service (1er)</string>
+    <string name="feed_serve_second">Service (2e)</string>
+    <string name="shot_double_fault">Double faute</string>
+    <string name="shot_description">%1$s → %2$s</string>
+
+    <!-- Shot tracker -->
+    <string name="tracker_first_serve">1er service</string>
+    <string name="tracker_second_serve">2e service</string>
+
+    <!-- Finish match sheet -->
+    <string name="finish_title">Terminer le match</string>
+    <string name="finish_cancel_and_delete">Annuler et supprimer le match</string>
+    <string name="delete_dialog_title">Supprimer le match&#160;?</string>
+    <string name="delete_dialog_text">Tous les coups saisis seront définitivement supprimés.</string>
+    <string name="delete_dialog_dismiss">Annuler</string>
+    <string name="delete_dialog_confirm">Supprimer</string>
+
+    <!-- Statistics (functional spec §9) -->
+    <string name="stats_empty">Aucune statistique disponible pour l\'instant.</string>
+    <string name="stats_section_serve">Service</string>
+    <string name="stats_section_forehand">Coup droit</string>
+    <string name="stats_section_backhand">Revers</string>
+    <string name="stats_section_special">Coups spéciaux</string>
+    <string name="stats_first_serve">1er srv</string>
+    <string name="stats_second_serve">2e srv</string>
+    <string name="stats_aces">Aces</string>
+    <string name="stats_double_faults">Dbl. faute</string>
+    <string name="stats_success">Succès</string>
+    <string name="stats_winners">Winners</string>
+    <string name="stats_net">Filet</string>
+    <string name="stats_out">Out</string>
+    <string name="stats_percent">%1$d%%</string>
+    <string name="stats_not_available">—</string>
+    <string name="stats_ratio">%1$d/%2$d</string>
+    <string name="stats_out_of">sur %1$d</string>
+    <string name="stats_of_successes">sur succès</string>
 </resources>
