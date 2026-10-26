@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TennisStats" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.TennisStats.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/brand_violet</item>
+        <item name="postSplashScreenTheme">@style/Theme.TennisStats</item>
+    </style>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_violet">#FF5B21B6</color>
+    <color name="tennis_ball">#FFD4F53C</color>
+    <color name="tennis_ball_seam">#FFFFFFFF</color>
+    <color name="splash_background">#FFFFFFFF</color>
+</resources>
