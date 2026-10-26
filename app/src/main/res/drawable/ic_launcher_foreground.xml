@@ -4,20 +4,27 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="@color/tennis_ball"
-        android:pathData="M54,28a26,26 0,1 1,0 52a26,26 0,1 1,0 -52z" />
-    <group>
-        <clip-path android:pathData="M54,28a26,26 0,1 1,0 52a26,26 0,1 1,0 -52z" />
+    <!-- Ball scaled down to stay well inside the adaptive icon safe zone. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.85"
+        android:scaleY="0.85">
         <path
-            android:pathData="M33,31C45,42 45,66 33,77"
-            android:strokeWidth="3.5"
-            android:strokeColor="@color/tennis_ball_seam"
-            android:strokeLineCap="round" />
-        <path
-            android:pathData="M75,31C63,42 63,66 75,77"
-            android:strokeWidth="3.5"
-            android:strokeColor="@color/tennis_ball_seam"
-            android:strokeLineCap="round" />
+            android:fillColor="@color/tennis_ball"
+            android:pathData="M54,28a26,26 0,1 1,0 52a26,26 0,1 1,0 -52z" />
+        <group>
+            <clip-path android:pathData="M54,28a26,26 0,1 1,0 52a26,26 0,1 1,0 -52z" />
+            <path
+                android:pathData="M33,31C45,42 45,66 33,77"
+                android:strokeWidth="3.5"
+                android:strokeColor="@color/tennis_ball_seam"
+                android:strokeLineCap="round" />
+            <path
+                android:pathData="M75,31C63,42 63,66 75,77"
+                android:strokeWidth="3.5"
+                android:strokeColor="@color/tennis_ball_seam"
+                android:strokeLineCap="round" />
+        </group>
     </group>
 </vector>

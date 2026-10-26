@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:name=".TennisStatsApplication"
@@ -9,10 +10,13 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.TennisStats">
+        <!-- Portrait only in V1 (courtside use, functional spec §8.3). Honoured on phones; Android 16+
+             ignores it on large screens (sw600dp+), which are out of scope for the beta. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity"
             android:theme="@style/Theme.TennisStats.Starting"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
