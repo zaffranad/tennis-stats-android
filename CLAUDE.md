@@ -124,6 +124,8 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 
 ## 4. Navigation et écrans
 
+Permission déclarée : `VIBRATE` uniquement (normale, accordée à l'installation).
+
 Single-activity (`MainActivity` : splash screen `core-splashscreen`, `enableEdgeToEdge()`, portrait). `navigation/Routes.kt` + `navigation/TennisStatsNavHost.kt`.
 
 | Écran | Route | Entrée | Sortie |
@@ -197,7 +199,7 @@ Disposition, de haut en bas : **bandeau de feedback** → **sélecteur de servic
 | Composant (fichier) | Élément | Libellé / contenu | Comportement |
 |---|---|---|---|
 | `ShotTracker` (`ShotTracker.kt`, tag `shot_tracker`) | conteneur | `Surface` arrondie en haut, ombre | désactivée et à 50 % d'opacité pendant l'écriture d'un coup ; indicateur de progression en haut à droite ; taps ignorés (anti double-tap) |
-| `FeedbackBanner` (`FeedbackBanner.kt`, tag `feedback_banner`) | bandeau animé (bande réservée de 44 dp, ne masque aucun bouton) | « Coup droit → Winner », « Volée → Filet », « 1er service → Ace », « 2e service → En jeu », « 1er service → Out », « Double faute » | visible **2 s** (`MatchViewModel.FEEDBACK_DURATION_MILLIS`), remplacé à chaque coup ; couleur du résultat ; `liveRegion` ; retour haptique `Confirm` à chaque coup |
+| `FeedbackBanner` (`FeedbackBanner.kt`, tag `feedback_banner`) | bandeau animé (bande réservée de 44 dp, ne masque aucun bouton) | « Coup droit → Winner », « Volée → Filet », « 1er service → Ace », « 2e service → En jeu », « 1er service → Out », « Double faute » | visible **2 s** (`MatchViewModel.FEEDBACK_DURATION_MILLIS`), remplacé à chaque coup ; couleur du résultat ; `liveRegion` ; vibration à chaque coup via l'API `Vibrator` (`ShotVibrator` : `EFFECT_HEAVY_CLICK`, impulsion de 40 ms avant API 29 ; permission `VIBRATE`), indépendante du réglage système « vibration au toucher » |
 | `ServeSelector` (`ServeSelector.kt`) | bouton **« 1er service »** (tag `serve_1`, pastille « 1 ») | actif : violet | tap : si (`SERVE`, 1) → désactive le mode service ; sinon → `SERVE`, n° 1 |
 | | bouton **« 2e service »** (tag `serve_2`, pastille « 2 ») | actif : ambre | tap : si (`SERVE`, 2) → désactive ; sinon → `SERVE`, n° 2 |
 | | contour du sélecteur | prend la couleur active | `semantics { selected }` sur chaque bouton |
@@ -284,7 +286,7 @@ app/src/main/java/fr/zaffran/tennisstats/
     ├── home/        HomeScreen (HomeContent, ActiveMatchCard, HistoryRow, EmptyHistory) · HomeViewModel · HomeUiState
     ├── newmatch/    NewMatchScreen (NewMatchContent, OpponentNameField, OpponentLevelField) · NewMatchViewModel (NewMatchUiState, NewMatchError, NewMatchEvent)
     └── match/
-        ├── MatchScreen.kt (MatchScreen, MatchContent, InputTab, MatchTitle, MoreMenu, KeepScreenOn) · MatchViewModel.kt · MatchUiState.kt (MatchUiState, ShotFeedback, MatchEvent, MatchMessage) · ShotPresentation.kt
+        ├── MatchScreen.kt (MatchScreen, MatchContent, InputTab, MatchTitle, MoreMenu, KeepScreenOn) · MatchViewModel.kt · MatchUiState.kt (MatchUiState, ShotFeedback, MatchEvent, MatchMessage) · ShotPresentation.kt · ShotVibrator.kt (ShotVibrator, rememberShotVibrator)
         ├── input/   ShotTracker · ServeSelector · GroundstrokeColumns (colonnes + modificateurs) · FeedbackBanner
         ├── feed/    ShotFeed
         ├── finish/  FinishMatchSheet.kt (FinishMatchSheet, DeleteMatchDialog)

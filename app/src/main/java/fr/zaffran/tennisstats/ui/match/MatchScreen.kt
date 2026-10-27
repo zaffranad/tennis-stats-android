@@ -41,8 +41,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -88,9 +86,9 @@ fun MatchScreen(onBack: () -> Unit, onMatchDeleted: () -> Unit, viewModel: Match
         if (uiState.isMissing && !uiState.isLoading) currentOnMatchDeleted()
     }
     // Confirms each recorded shot without looking at the screen.
-    val haptic = LocalHapticFeedback.current
+    val shotVibrator = rememberShotVibrator()
     LaunchedEffect(uiState.feedback?.id) {
-        if (uiState.feedback != null) haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+        if (uiState.feedback != null) shotVibrator.vibrate()
     }
     KeepScreenOn(enabled = uiState.isInProgress)
 
