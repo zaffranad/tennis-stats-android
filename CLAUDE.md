@@ -338,7 +338,7 @@ app/src/main/java/fr/zaffran/tennisstats/
 Tests :
 
 - `app/src/test/` (JVM) : `ShotInputReducerTest`, `DeriveServeNumberTest`, `StatsCalculatorTest`, `MetricCalculatorTest`, `HistoryAndTrendTest`, `EnumValuesTest`, `HomeViewModelTest`, `NewMatchViewModelTest`, `MatchViewModelTest`, `StatsViewModelTest` ; utilitaires `testing/FakeMatchRepository`, `MainDispatcherRule`, `ShotFactory`.
-- `app/src/androidTest/` (instrumentés) : `TennisStatsDaoTest` (dont `observeCompletedShotCounts`), `OfflineMatchRepositoryTest` (Room in-memory), `HomeAndNewMatchContentTest`, `MatchScreenTest` (séquence « double faute » et parcours manuel jusqu'à « Victoire »).
+- `app/src/androidTest/` (instrumentés) : `TennisStatsDaoTest` (dont `observeCompletedShotCounts`), `OfflineMatchRepositoryTest` (Room in-memory), `HomeAndNewMatchContentTest` (dont l'icône « Statistiques »), `MatchScreenTest` (séquence « double faute » et parcours manuel jusqu'à « Victoire »), `StatsScreenTest` (onglets Match / Historique / Évolution sur Room in-memory).
 - Previews `@ThemePreviews` (clair + sombre) : ShotTracker (normal, 1er service, 2e service, modificateur, enregistrement), ShotFeed, statistiques, page Statistiques (3 onglets), Accueil, Nouveau match, badges.
 
 ---

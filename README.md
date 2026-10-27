@@ -1,6 +1,6 @@
 # Tennis Stats — Android (V1 Beta)
 
-Application Android native qui permet à un observateur (parent, entraîneur) de saisir **en temps réel, en 1 tap**, chaque coup joué par **un** joueur de tennis pendant un match, puis de consulter les statistiques d'exécution du match : % de 1ers et 2es services, aces, doubles fautes, % de réussite, de winners, de fautes au filet et de fautes out par coup. L'application ne compte pas le score.
+Application Android native qui permet à un observateur (parent, entraîneur) de saisir **en temps réel, en 1 tap**, chaque coup joué par **un** joueur de tennis pendant un match, puis de consulter les statistiques d'exécution du match : % de 1ers et 2es services, aces, doubles fautes, % de réussite, de winners, de fautes au filet et de fautes out par coup. Une page « Statistiques » cumule l'historique des matchs terminés, compare le match courant aux moyennes et montre l'évolution match après match. L'application ne compte pas le score.
 
 C'est le portage de l'application web Tennis Stats (Next.js). Les documents de référence font foi :
 
@@ -69,6 +69,7 @@ Ce parcours est couvert par le code et automatisé jusqu'à « Victoire » par `
 7. Onglet **Statistiques** : Service 1er srv **0%** (0/1), 2e srv **100%** (1/1), Aces 0, Dbl. faute 0 ; Coup droit Succès **100%** (sur 1), Winners **100%** ; pas de section « Coups spéciaux ».
 8. **« Terminer »** (top app bar) → feuille « Terminer le match » → **« Victoire »** : badge « Victoire », onglet Statistiques, plus de barre de saisie.
 9. Retour → l'Accueil affiche le match dans **« Derniers matchs »** (« 3 coups », badge Victoire), le FAB « Nouveau match » est de nouveau visible.
+9 bis. Icône **« Statistiques »** (top app bar de l'Accueil) → onglet **Match** : « Dernier match terminé », vs {adversaire}, mêmes sections qu'à l'étape 7 (pas de carte « Comparaison » avec un seul match) ; onglet **Historique** : « 1 match terminé », Bilan 1 / 1 victoire ; onglet **Évolution** : « Au moins 2 matchs terminés… » et une ligne dans « Détail par match ». Retour.
 10. Tap sur la ligne → match (onglet Statistiques) → menu **⋮** → **« Supprimer le match »** → dialogue « Supprimer le match ? » → **« Supprimer »** → retour à l'Accueil, historique vide.
 
 ## Architecture

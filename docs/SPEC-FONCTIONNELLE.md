@@ -429,3 +429,4 @@ Affichée si au moins un coup spécial existe. Une tuile par type joué, dans l'
 | Erreur d'enregistrement d'un coup | Ignorée silencieusement | Snackbar | Correction |
 | Onglet initial d'un match terminé | Saisie | Statistiques | Ergonomie |
 | Écran allumé, orientation | — | Écran maintenu allumé, portrait | Usage en bord de court |
+| Statistiques multi-matchs | Aucune | Page « Statistiques » : match courant comparé aux moyennes, historique cumulé, évolution (`SPEC-STATISTIQUES.md`) | Choix produit |
