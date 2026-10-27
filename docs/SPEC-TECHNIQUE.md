@@ -34,7 +34,7 @@ Principe directeur : suivre les **recommandations officielles Google** (« Guide
 | JVM toolchain | 17 |
 | `versionName` | `0.1.0-beta` |
 
-Dépendances explicitement **exclues** en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore (aucune préférence utilisateur à stocker), bibliothèques de graphiques.
+Dépendances explicitement **exclues** en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore (aucune préférence utilisateur à stocker), bibliothèques de graphiques (le graphique d'évolution est dessiné avec `Canvas`).
 
 ---
 
@@ -81,7 +81,7 @@ fr.zaffran.tennisstats
 ├── domain/
 │   ├── model/                       (Match, Shot, ShotType, ShotOutcome, MatchStatus, MatchResult, OpponentLevel)
 │   ├── input/                       (ShotInputState, ShotInputReducer, deriveServeNumber)
-│   └── stats/                       (MatchStats, StrokeStats, SpecialShotStats, StatsCalculator)
+│   └── stats/                       (MatchStats, StatsCalculator, ShotTally, StatMetric/MetricCalculator, HistoryCalculator, TrendCalculator)
 ├── data/
 │   ├── local/                       (TennisStatsDatabase, MatchEntity, ShotEntity, MatchDao, ShotDao, Converters)
 │   ├── repository/                  (MatchRepository, OfflineMatchRepository)
@@ -96,7 +96,8 @@ fr.zaffran.tennisstats
         ├── input/                   (ShotTracker, ServeSelector, GroundstrokeColumns, FeedbackBanner)
         ├── feed/                    (ShotFeed)
         ├── finish/                  (FinishMatchSheet)
-        └── stats/                   (MatchStatsContent)
+        └── stats/                   (MatchStatsContent, matchStatsSections)
+    └── stats/                       (StatsScreen, StatsViewModel, onglets Match / Historique / Évolution, TrendChart)
 ```
 
 ---
@@ -147,7 +148,7 @@ Les règles exactes sont dans `01-SPEC-FONCTIONNELLE.md` §8.3. Points d'attenti
 
 ### 3.2 StatsCalculator
 
-`fun computeStats(shots: List<Shot>): MatchStats` — fonction pure. Les sections sont nullables lorsqu'elles ne doivent pas être affichées. Pourcentages en `Int?` (`null` → « — »). Arrondi : `(a * 100.0 / b).roundToInt()`, équivalent au `Math.round` JavaScript pour des valeurs positives. Formules et cas de test : `01-SPEC-FONCTIONNELLE.md` §9.
+`fun computeStats(shots: List<Shot>): MatchStats` — fonction pure. Surcharge `computeStats(tally: ShotTally)` : un `ShotTally` compte les coups par (type, résultat, 1er/2e service) ; les tallies de plusieurs matchs s'additionnent pour les statistiques poolées de l'historique (`SPEC-STATISTIQUES.md`). Les sections sont nullables lorsqu'elles ne doivent pas être affichées. Pourcentages en `Int?` (`null` → « — »). Arrondi : `(a * 100.0 / b).roundToInt()`, équivalent au `Math.round` JavaScript pour des valeurs positives. Formules et cas de test : `01-SPEC-FONCTIONNELLE.md` §9.
 
 ---
 
@@ -189,6 +190,7 @@ data class ShotEntity(
   - `observeCompletedMatches(): Flow<List<MatchWithShotCount>>` (tri `playedAt DESC`) ;
   - `observeMatch(id): Flow<MatchEntity?>` ;
   - `observeShots(matchId): Flow<List<ShotEntity>>` (alimente le fil, le compteur, les stats et la dérivation du n° de service) ;
+  - `observeCompletedShotCounts(): Flow<List<ShotCountRow>>` (comptage `GROUP BY matchId, type, outcome, isSecondServe` des matchs terminés : alimente l'historique et l'évolution sans charger tous les coups) ;
   - `insertShot`, `deleteLastShot(matchId)`, `finishMatch(id, result)`, `deleteMatch(id)`.
 - **Règles métier appliquées dans le repository** (et pas seulement dans l'UI) : RG-01 dans une transaction `@Transaction` (vérifier l'absence de match en cours puis insérer), RG-03, RG-04, RG-06 (refus si le match est terminé).
 - Le repository renvoie un `Result`/une `sealed class` d'erreurs métier (`MatchAlreadyInProgress`, `OpponentNameRequired`, `MatchNotInProgress`) que les ViewModels traduisent en messages (`strings.xml`).
@@ -220,6 +222,7 @@ data class ShotEntity(
 | `ShotInputReducer` | Unitaire | Toutes les lignes des tableaux §8.3 de la spec fonctionnelle (toggle 1er/2e, toggle modificateur, enchaînement 1re faute → 2e → double faute → retour à l'état normal, ace, coup spécial qui réinitialise le mode, colonne gauche ignorée en mode service). |
 | `deriveServeNumber` | Unitaire | aucun service ; dernier = 1er `fault` ; dernier = 1er `net` ; dernier = 1er `in` ; dernier = 2e `fault`. |
 | `StatsCalculator` | Unitaire | Les 5 exemples du §9.5 + match vide + sections absentes. |
+| `MetricCalculator`, `HistoryCalculator`, `TrendCalculator` | Unitaire | Les exemples du §7 de `SPEC-STATISTIQUES.md`. |
 | ViewModels | Unitaire (fake repository, Turbine) | création OK / nom vide / match déjà en cours ; enregistrement d'un coup et transition d'état ; « Annuler » et re-dérivation du n° de service ; fin de match. |
 | DAO / Repository | Instrumenté (Room in-memory) | cascade de suppression, ordre des coups, `deleteLastShot`, refus d'un 2e match en cours. |
 | ShotTracker | Compose UI test | séquence 1er service Out → l'en-tête affiche « 2e service » → Filet → bandeau « Double faute » et retour en mode normal. |

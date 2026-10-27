@@ -27,8 +27,8 @@ L'application ne compte **pas les points ni le score**. Elle mesure la **qualit�
 
 ### Périmètre V1 Beta
 
-- **Inclus** : création de match, saisie des coups, annulation, fin de match (victoire/défaite), annulation/suppression du match en cours, statistiques du match, historique complet, suppression d'un match terminé.
-- **Exclus** : authentification, synchronisation cloud, multi-joueurs, score, export, statistiques multi-matchs, tablettes/paysage (portrait uniquement).
+- **Inclus** : création de match, saisie des coups, annulation, fin de match (victoire/défaite), annulation/suppression du match en cours, statistiques du match, historique complet, suppression d'un match terminé, **page « Statistiques »** (match courant, cumul de l'historique, évolution match après match — voir `SPEC-STATISTIQUES.md`).
+- **Exclus** : authentification, synchronisation cloud, multi-joueurs, score, export, tablettes/paysage (portrait uniquement).
 - **Stockage** : base de données **locale** sur l'appareil uniquement.
 
 ---
@@ -131,7 +131,8 @@ L'application ne compte **pas les points ni le score**. Elle mesure la **qualit�
 Accueil ──► Nouveau match ──(Démarrer)──► Match [onglet Saisie]
    │                                        ▲   │
    ├──(carte match en cours)────────────────┘   ├── onglet Statistiques
-   └──(ligne historique)──► Match [onglet Statistiques]
+   ├──(ligne historique)──► Match [onglet Statistiques]
+   └──(icône Statistiques)──► Statistiques [Match / Historique / Évolution] ──► Match
 ```
 
 | Écran | Route (Navigation Compose) | Entrée |
@@ -139,6 +140,7 @@ Accueil ──► Nouveau match ──(Démarrer)──► Match [onglet Saisie]
 | Accueil | `Home` | Écran de démarrage |
 | Nouveau match | `NewMatch` | ExtendedFAB « Nouveau match » |
 | Match | `Match(matchId, initialTab)` | Carte « en cours » (onglet Saisie) ou ligne d'historique (onglet Statistiques) |
+| Statistiques | `Stats` | Icône « Statistiques » de la top app bar de l'Accueil (voir `SPEC-STATISTIQUES.md`) |
 
 - Après « Démarrer » : naviguer vers `Match` en **retirant `NewMatch` de la pile** (le retour ramène à l'Accueil).
 - Si l'utilisateur ouvre `NewMatch` alors qu'un match est en cours : redirection vers ce match (comportement web).
@@ -153,7 +155,7 @@ Accueil ──► Nouveau match ──(Démarrer)──► Match [onglet Saisie]
 
 | Zone | Contenu |
 |---|---|
-| **Top app bar** | Titre « Tennis Stats ». (Pas de menu utilisateur : pas d'authentification en V1.) |
+| **Top app bar** | Titre « Tennis Stats » ; action icône `bar_chart` « Statistiques » → page Statistiques. (Pas de menu utilisateur : pas d'authentification en V1.) |
 | **Carte match en cours** | Visible si un match `in_progress` existe. Style vert/émeraude, mis en avant. Contient : pastille animée **« En cours »**, « vs {adversaire} », « Niveau : {libellé} » (si renseigné), « {n} coup(s) », date (`dd/MM/yyyy`), libellé d'action **« Reprendre le match »**. Toute la carte est cliquable → écran Match, onglet Saisie. |
 | **Message d'information** | Si un match est en cours : « Terminez le match en cours avant d'en démarrer un nouveau. » |
 | **Section « Derniers matchs »** | **[ANDROID]** **Tous** les matchs terminés (le web en limite l'affichage à 5), triés par `playedAt` décroissant, dans une `LazyColumn`. Chaque ligne : « vs {adversaire} », date, « {n} coup(s) », badge **Victoire** (vert) ou **Défaite** (rouge). Clic → écran Match, onglet Statistiques. |
@@ -314,6 +316,8 @@ Si le match ne compte aucun coup : « Aucune statistique disponible pour l'insta
 ---
 
 ## 9. Statistiques — définitions exactes
+
+> Statistiques d'**un** match. Le cumul sur l'historique, l'évolution et la comparaison d'un match à ses moyennes sont spécifiés dans `SPEC-STATISTIQUES.md` (mêmes formules, appliquées à plusieurs matchs).
 
 Notations : `pct(a, b) = round(a / b × 100)` (arrondi au plus proche, demi vers le haut). Affichage `"{pct}%"`, ou **« — »** si la valeur n'est pas calculable.
 
