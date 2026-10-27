@@ -11,6 +11,8 @@ import fr.zaffran.tennisstats.domain.model.MatchResult
 import fr.zaffran.tennisstats.domain.model.MatchStatus
 import fr.zaffran.tennisstats.domain.model.MatchSummary
 import fr.zaffran.tennisstats.domain.model.Shot
+import fr.zaffran.tennisstats.domain.stats.MatchTally
+import fr.zaffran.tennisstats.domain.stats.ShotTally
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
@@ -62,6 +64,15 @@ class FakeMatchRepository : MatchRepository {
 
     override fun observeCompletedMatches(): Flow<List<MatchSummary>> = summaries().map { list ->
         list.filter { it.match.status == MatchStatus.COMPLETED }.sortedByDescending { it.match.playedAt }
+    }.distinctUntilChanged()
+
+    override fun observeCompletedMatchTallies(): Flow<List<MatchTally>> = combine(matches, shots) {
+            matchList,
+            shotList,
+        ->
+        matchList.filter { it.status == MatchStatus.COMPLETED }
+            .sortedByDescending { it.playedAt }
+            .map { m -> MatchTally(m, ShotTally.of(shotList.filter { it.matchId == m.id })) }
     }.distinctUntilChanged()
 
     override fun observeMatch(matchId: String): Flow<Match?> =

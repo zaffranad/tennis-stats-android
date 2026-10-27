@@ -4,15 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,13 +29,15 @@ import fr.zaffran.tennisstats.domain.stats.StatsCalculator
 import fr.zaffran.tennisstats.domain.stats.StrokeStats
 import fr.zaffran.tennisstats.ui.components.SectionHeader
 import fr.zaffran.tennisstats.ui.components.StatTile
+import fr.zaffran.tennisstats.ui.components.StatTileRow
+import fr.zaffran.tennisstats.ui.components.StatsCard
+import fr.zaffran.tennisstats.ui.components.TILES_PER_ROW
 import fr.zaffran.tennisstats.ui.components.ThemePreviews
+import fr.zaffran.tennisstats.ui.components.percentText
 import fr.zaffran.tennisstats.ui.components.shotCountText
 import fr.zaffran.tennisstats.ui.match.shotTypeLabel
 import fr.zaffran.tennisstats.ui.theme.TennisStatsTheme
 import java.time.Instant
-
-private const val TILES_PER_ROW = 4
 
 /** « Statistiques » tab (functional spec §9), updated live from the shots. */
 @Composable
@@ -58,35 +58,60 @@ fun MatchStatsContent(stats: MatchStats, contentPadding: PaddingValues, modifier
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        stats.serve?.let { serve -> item(key = "serve") { StatsCard { ServeSection(serve) } } }
-        stats.groundstrokes?.let { groundstrokes ->
-            item(key = "groundstrokes") {
-                StatsCard {
-                    groundstrokes.forehand?.let { StrokeSection(stringResource(R.string.stats_section_forehand), it) }
-                    if (groundstrokes.forehand != null && groundstrokes.backhand != null) {
-                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    }
-                    groundstrokes.backhand?.let { StrokeSection(stringResource(R.string.stats_section_backhand), it) }
+        matchStatsSections(stats)
+    }
+}
+
+/**
+ * Cards of the functional spec §9 (Service, Coup droit / Revers, Coups spéciaux) as list items,
+ * for a match or pooled over several matches. [serveCountTiles] replaces the Aces and Dbl. faute tiles.
+ */
+fun LazyListScope.matchStatsSections(
+    stats: MatchStats,
+    serveCountTiles: (@Composable (ServeStats) -> List<@Composable (Modifier) -> Unit>)? = null,
+) {
+    stats.serve?.let { serve ->
+        item(key = "serve") {
+            StatsCard { ServeSection(serve, serveCountTiles?.invoke(serve) ?: matchServeCountTiles(serve)) }
+        }
+    }
+    stats.groundstrokes?.let { groundstrokes ->
+        item(key = "groundstrokes") {
+            StatsCard {
+                groundstrokes.forehand?.let { StrokeSection(stringResource(R.string.stats_section_forehand), it) }
+                if (groundstrokes.forehand != null && groundstrokes.backhand != null) {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 }
+                groundstrokes.backhand?.let { StrokeSection(stringResource(R.string.stats_section_backhand), it) }
             }
         }
-        stats.specialShots?.let { specials -> item(key = "special") { StatsCard { SpecialShotsSection(specials) } } }
     }
+    stats.specialShots?.let { specials -> item(key = "special") { StatsCard { SpecialShotsSection(specials) } } }
+}
+
+/** « Aces » and « Dbl. faute » counts of one match. */
+@Composable
+private fun matchServeCountTiles(serve: ServeStats): List<@Composable (Modifier) -> Unit> {
+    val colors = TennisStatsTheme.semanticColors
+    return listOf(
+        { StatTile(serve.aces.toString(), stringResource(R.string.stats_aces), colors.emerald.content, it) },
+        {
+            StatTile(
+                serve.doubleFaults.toString(),
+                stringResource(R.string.stats_double_faults),
+                colors.red.content,
+                it,
+            )
+        },
+    )
 }
 
 @Composable
-private fun StatsCard(content: @Composable () -> Unit) {
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) { content() }
-    }
-}
-
-@Composable
-private fun ServeSection(serve: ServeStats) {
+private fun ServeSection(serve: ServeStats, countTiles: List<@Composable (Modifier) -> Unit>) {
     val colors = TennisStatsTheme.semanticColors
     SectionHeader(stringResource(R.string.stats_section_serve))
-    TileRow(
-        listOf(
+    StatTileRow(
+        listOf<@Composable (Modifier) -> Unit>(
             {
                 StatTile(
                     value = percentText(serve.firstServePct),
@@ -105,18 +130,7 @@ private fun ServeSection(serve: ServeStats) {
                     modifier = it,
                 )
             },
-            {
-                StatTile(serve.aces.toString(), stringResource(R.string.stats_aces), colors.emerald.content, it)
-            },
-            {
-                StatTile(
-                    serve.doubleFaults.toString(),
-                    stringResource(R.string.stats_double_faults),
-                    colors.red.content,
-                    it,
-                )
-            },
-        ),
+        ) + countTiles,
     )
 }
 
@@ -124,7 +138,7 @@ private fun ServeSection(serve: ServeStats) {
 private fun StrokeSection(title: String, stroke: StrokeStats) {
     val colors = TennisStatsTheme.semanticColors
     SectionHeader(title)
-    TileRow(
+    StatTileRow(
         listOf(
             {
                 StatTile(
@@ -155,7 +169,7 @@ private fun SpecialShotsSection(specials: List<SpecialShotStats>) {
     val green = TennisStatsTheme.semanticColors.green.content
     SectionHeader(stringResource(R.string.stats_section_special))
     specials.chunked(TILES_PER_ROW).forEach { row ->
-        TileRow(
+        StatTileRow(
             row.map { special ->
                 { modifier: Modifier ->
                     StatTile(
@@ -170,20 +184,6 @@ private fun SpecialShotsSection(specials: List<SpecialShotStats>) {
         )
     }
 }
-
-/** Up to four tiles of equal width. */
-@Composable
-private fun TileRow(tiles: List<@Composable (Modifier) -> Unit>) {
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.Top) {
-        tiles.forEach { tile -> tile(Modifier.weight(1f)) }
-        repeat(TILES_PER_ROW - tiles.size) { Spacer(Modifier.weight(1f)) }
-    }
-}
-
-/** « {pct}% » or « — » when not computable. */
-@Composable
-private fun percentText(pct: Int?): String =
-    pct?.let { stringResource(R.string.stats_percent, it) } ?: stringResource(R.string.stats_not_available)
 
 @ThemePreviews
 @Composable

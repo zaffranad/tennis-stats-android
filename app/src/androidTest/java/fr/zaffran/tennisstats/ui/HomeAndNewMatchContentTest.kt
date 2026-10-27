@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso
@@ -58,6 +59,7 @@ class HomeAndNewMatchContentTest {
                         ),
                     ),
                     onNewMatch = {},
+                    onOpenStats = {},
                     onOpenMatch = { id, tab -> opened = id to tab },
                 )
             }
@@ -87,6 +89,7 @@ class HomeAndNewMatchContentTest {
                         ),
                     ),
                     onNewMatch = { newMatchClicked = true },
+                    onOpenStats = {},
                     onOpenMatch = { id, tab -> opened = id to tab },
                 )
             }
@@ -101,10 +104,16 @@ class HomeAndNewMatchContentTest {
     }
 
     @Test
-    fun home_empty_showsEmptyState() {
+    fun home_empty_showsEmptyState_andOpensStatistics() {
+        var statsOpened = false
         composeRule.setContent {
             TennisStatsTheme {
-                HomeContent(uiState = HomeUiState(isLoading = false), onNewMatch = {}, onOpenMatch = { _, _ -> })
+                HomeContent(
+                    uiState = HomeUiState(isLoading = false),
+                    onNewMatch = {},
+                    onOpenStats = { statsOpened = true },
+                    onOpenMatch = { _, _ -> },
+                )
             }
         }
 

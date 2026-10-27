@@ -7,6 +7,8 @@ import fr.zaffran.tennisstats.domain.model.MatchSummary
 import fr.zaffran.tennisstats.domain.model.Shot
 import fr.zaffran.tennisstats.domain.model.ShotOutcome
 import fr.zaffran.tennisstats.domain.model.ShotType
+import fr.zaffran.tennisstats.domain.stats.ShotKey
+import fr.zaffran.tennisstats.domain.stats.ShotTally
 
 fun MatchEntity.toDomain() = Match(
     id = id,
@@ -49,3 +51,13 @@ fun Shot.toEntity() = ShotEntity(
     isSecondServe = isSecondServe,
     createdAt = createdAt,
 )
+
+/** Groups the rows by match into shot tallies. */
+fun List<ShotCountRow>.toTallies(): Map<String, ShotTally> = groupBy { it.matchId }.mapValues { (_, rows) ->
+    ShotTally(
+        rows.associate {
+            ShotKey(ShotType.fromValue(it.type), ShotOutcome.fromValue(it.outcome), it.isSecondServe) to
+                it.count
+        },
+    )
+}

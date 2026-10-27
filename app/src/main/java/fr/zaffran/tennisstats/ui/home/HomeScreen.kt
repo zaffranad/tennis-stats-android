@@ -21,6 +21,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
@@ -59,11 +60,12 @@ import java.time.Instant
 @Composable
 fun HomeScreen(
     onNewMatch: () -> Unit,
+    onOpenStats: () -> Unit,
     onOpenMatch: (matchId: String, tab: MatchTab) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    HomeContent(uiState = uiState, onNewMatch = onNewMatch, onOpenMatch = onOpenMatch)
+    HomeContent(uiState = uiState, onNewMatch = onNewMatch, onOpenStats = onOpenStats, onOpenMatch = onOpenMatch)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +73,7 @@ fun HomeScreen(
 fun HomeContent(
     uiState: HomeUiState,
     onNewMatch: () -> Unit,
+    onOpenStats: () -> Unit,
     onOpenMatch: (matchId: String, tab: MatchTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -80,6 +83,11 @@ fun HomeContent(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.home_title)) },
+                actions = {
+                    IconButton(onClick = onOpenStats) {
+                        Icon(painterResource(R.drawable.ic_bar_chart), stringResource(R.string.home_stats))
+                    }
+                },
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -289,6 +297,7 @@ private fun HomeWithActiveMatchPreview() {
                 ),
             ),
             onNewMatch = {},
+            onOpenStats = {},
             onOpenMatch = { _, _ -> },
         )
     }
@@ -298,6 +307,7 @@ private fun HomeWithActiveMatchPreview() {
 @Composable
 private fun HomeEmptyPreview() {
     TennisStatsTheme {
-        HomeContent(uiState = HomeUiState(isLoading = false), onNewMatch = {}, onOpenMatch = { _, _ -> })
+        HomeContent(uiState = HomeUiState(isLoading = false), onNewMatch = {
+        }, onOpenStats = {}, onOpenMatch = { _, _ -> })
     }
 }

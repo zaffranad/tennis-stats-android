@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import fr.zaffran.tennisstats.ui.home.HomeScreen
 import fr.zaffran.tennisstats.ui.match.MatchScreen
 import fr.zaffran.tennisstats.ui.newmatch.NewMatchScreen
+import fr.zaffran.tennisstats.ui.stats.StatsScreen
 
 @Composable
 fun TennisStatsNavHost(modifier: Modifier = Modifier, navController: NavHostController = rememberNavController()) {
@@ -16,6 +17,7 @@ fun TennisStatsNavHost(modifier: Modifier = Modifier, navController: NavHostCont
         composable<Home> {
             HomeScreen(
                 onNewMatch = { navController.navigate(NewMatch) },
+                onOpenStats = { navController.navigate(Stats) },
                 onOpenMatch = { matchId, tab -> navController.navigate(Match(matchId, tab)) },
             )
         }
@@ -28,6 +30,12 @@ fun TennisStatsNavHost(modifier: Modifier = Modifier, navController: NavHostCont
                         popUpTo<NewMatch> { inclusive = true }
                     }
                 },
+            )
+        }
+        composable<Stats> {
+            StatsScreen(
+                onBack = { navController.navigateUp() },
+                onOpenMatch = { matchId, tab -> navController.navigate(Match(matchId, tab)) },
             )
         }
         composable<Match> {

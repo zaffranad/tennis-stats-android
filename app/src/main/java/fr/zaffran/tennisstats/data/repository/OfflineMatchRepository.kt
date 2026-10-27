@@ -6,6 +6,7 @@ import fr.zaffran.tennisstats.data.local.ShotDao
 import fr.zaffran.tennisstats.data.local.TennisStatsDatabase
 import fr.zaffran.tennisstats.data.local.toDomain
 import fr.zaffran.tennisstats.data.local.toEntity
+import fr.zaffran.tennisstats.data.local.toTallies
 import fr.zaffran.tennisstats.data.repository.RepositoryResult.Failure
 import fr.zaffran.tennisstats.data.repository.RepositoryResult.Success
 import fr.zaffran.tennisstats.data.util.Clock
@@ -16,8 +17,11 @@ import fr.zaffran.tennisstats.domain.model.MatchResult
 import fr.zaffran.tennisstats.domain.model.MatchStatus
 import fr.zaffran.tennisstats.domain.model.MatchSummary
 import fr.zaffran.tennisstats.domain.model.Shot
+import fr.zaffran.tennisstats.domain.stats.MatchTally
+import fr.zaffran.tennisstats.domain.stats.ShotTally
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -35,6 +39,14 @@ class OfflineMatchRepository @Inject constructor(
 
     override fun observeCompletedMatches(): Flow<List<MatchSummary>> =
         matchDao.observeCompletedMatches().map { list -> list.map { it.toDomain() } }.distinctUntilChanged()
+
+    override fun observeCompletedMatchTallies(): Flow<List<MatchTally>> = combine(
+        matchDao.observeCompletedMatches(),
+        shotDao.observeCompletedShotCounts(),
+    ) { matches, counts ->
+        val tallies = counts.toTallies()
+        matches.map { MatchTally(it.match.toDomain(), tallies[it.match.id] ?: ShotTally.EMPTY) }
+    }.distinctUntilChanged()
 
     override fun observeMatch(matchId: String): Flow<Match?> =
         matchDao.observeMatch(matchId).map { it?.toDomain() }.distinctUntilChanged()

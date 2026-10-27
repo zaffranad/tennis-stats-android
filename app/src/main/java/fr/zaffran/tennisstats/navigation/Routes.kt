@@ -11,6 +11,10 @@ data object Home
 @Serializable
 data object NewMatch
 
+/** Statistics screen: current match, history and evolution. */
+@Serializable
+data object Stats
+
 /** Match screen, opened on [initialTab]. */
 @Serializable
 data class Match(val matchId: String, val initialTab: MatchTab)

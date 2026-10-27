@@ -12,6 +12,17 @@ interface ShotDao {
     @Query("SELECT * FROM shots WHERE matchId = :matchId ORDER BY createdAt DESC, rowid DESC")
     fun observeShots(matchId: String): Flow<List<ShotEntity>>
 
+    /** Shot counts of every completed match, grouped by type, outcome and serve number (history statistics). */
+    @Query(
+        """
+        SELECT s.matchId, s.type, s.outcome, s.isSecondServe, COUNT(*) AS count
+        FROM shots s INNER JOIN matches m ON m.id = s.matchId
+        WHERE m.status = 'completed'
+        GROUP BY s.matchId, s.type, s.outcome, s.isSecondServe
+        """,
+    )
+    fun observeCompletedShotCounts(): Flow<List<ShotCountRow>>
+
     @Query("SELECT * FROM shots WHERE matchId = :matchId ORDER BY createdAt DESC, rowid DESC LIMIT 1")
     suspend fun getLastShot(matchId: String): ShotEntity?
 

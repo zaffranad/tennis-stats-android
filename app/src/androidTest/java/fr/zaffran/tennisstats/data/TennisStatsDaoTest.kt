@@ -3,6 +3,7 @@ package fr.zaffran.tennisstats.data
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import fr.zaffran.tennisstats.data.local.MatchDao
+import fr.zaffran.tennisstats.data.local.ShotCountRow
 import fr.zaffran.tennisstats.data.local.ShotDao
 import fr.zaffran.tennisstats.data.local.TennisStatsDatabase
 import java.time.Instant
@@ -109,5 +110,24 @@ class TennisStatsDaoTest {
 
         assertThat(matchDao.finishMatch("m1", "loss", t0.plusSeconds(120))).isEqualTo(0)
         assertThat(matchDao.getMatch("m1")!!.result).isEqualTo("win")
+    }
+
+    @Test
+    fun completedShotCounts_groupByMatchTypeOutcomeAndServe_onlyForCompletedMatches() = runTest {
+        matchDao.insert(matchEntity("done", status = "completed", result = "win"))
+        matchDao.insert(matchEntity("live"))
+        shotDao.insertShot(shotEntity("a", "done", t0, type = "serve", outcome = "fault"))
+        shotDao.insertShot(shotEntity("b", "done", t0, type = "serve", outcome = "fault"))
+        shotDao.insertShot(shotEntity("c", "done", t0, type = "serve", outcome = "fault", isSecondServe = true))
+        shotDao.insertShot(shotEntity("d", "done", t0, type = "forehand", outcome = "winner"))
+        shotDao.insertShot(shotEntity("e", "live", t0))
+
+        val rows = shotDao.observeCompletedShotCounts().first()
+
+        assertThat(rows).containsExactly(
+            ShotCountRow("done", "serve", "fault", false, 2),
+            ShotCountRow("done", "serve", "fault", true, 1),
+            ShotCountRow("done", "forehand", "winner", false, 1),
+        )
     }
 }

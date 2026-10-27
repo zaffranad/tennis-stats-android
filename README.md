@@ -6,6 +6,7 @@ C'est le portage de l'application web Tennis Stats (Next.js). Les documents de r
 
 - [`docs/SPEC-FONCTIONNELLE.md`](docs/SPEC-FONCTIONNELLE.md) — règles métier, écrans, libellés, machine à états de saisie, formules de stats ;
 - [`docs/SPEC-TECHNIQUE.md`](docs/SPEC-TECHNIQUE.md) — stack, architecture, schéma Room, tests attendus ;
+- [`docs/SPEC-STATISTIQUES.md`](docs/SPEC-STATISTIQUES.md) — étude et spécification de la page « Statistiques » (match courant, historique, évolution) ;
 - [`CLAUDE.md`](CLAUDE.md) — documentation vivante de l'application (nomenclature des écrans, composants et boutons).
 
 100 % hors ligne : pas de compte, pas de réseau, données stockées uniquement dans une base Room locale.
@@ -74,7 +75,7 @@ Ce parcours est couvert par le code et automatisé jusqu'à « Victoire » par `
 
 Module unique `:app`, découpé en packages qui préfigurent une modularisation (`domain`, `data`, `ui`, `navigation`) :
 
-- `domain/` — Kotlin pur, sans dépendance Android : modèles, `ShotInputReducer` (machine à états de saisie), `deriveServeNumber`, `StatsCalculator`.
+- `domain/` — Kotlin pur, sans dépendance Android : modèles, `ShotInputReducer` (machine à états de saisie), `deriveServeNumber`, `StatsCalculator`, indicateurs multi-matchs (`ShotTally`, `MetricCalculator`, `HistoryCalculator`, `TrendCalculator`).
 - `data/` — Room (`TennisStatsDatabase`, entités, DAO), `MatchRepository` / `OfflineMatchRepository` (règles métier RG-01 à RG-07 appliquées en transaction), `Clock`, `IdGenerator`, modules Hilt.
 - `ui/` — écrans Compose, un `ViewModel` par écran exposant un `StateFlow<UiState>` ; événements ponctuels (navigation, Snackbar) via `Channel`.
 - `navigation/` — routes `@Serializable` (`Home`, `NewMatch`, `Match(matchId, initialTab)`) et `NavHost`.
@@ -123,6 +124,15 @@ Choix pris là où les spécifications ne tranchaient pas, ou écarts techniques
 - **Dates** affichées `dd/MM/yyyy` dans le fuseau horaire de l'appareil.
 - **Orientation portrait** : respectée sur téléphone. À partir d'Android 16, elle est ignorée sur les grands écrans (≥ 600 dp), hors périmètre de la Beta ; les alertes lint correspondantes sont neutralisées dans le manifeste.
 - **`MatchViewModel` à deux constructeurs** : celui injecté par Hilt décode la route avec `toRoute()` (qui a besoin d'Android) ; les tests JVM passent directement la route.
+
+### Statistiques multi-matchs
+
+Les décisions de fond sont dans `docs/SPEC-STATISTIQUES.md` §8. Côté implémentation :
+
+- **Comptage en SQL** (`ShotDao.observeCompletedShotCounts`, `GROUP BY`) puis agrégation dans le domaine via `ShotTally` : les statistiques poolées de l'historique réutilisent exactement `StatsCalculator`.
+- **Arrondi avant comparaison** : moyennes et écarts sont arrondis comme affichés (entier pour un taux, 1 décimale pour un volume), pour que « 70% » face à « moy. 60% » donne toujours « +10 pts ».
+- **Graphique en `Canvas`** (pas de bibliothèque) : point sélectionné par défaut = dernier match ; la liste « Détail par match » sert d'alternative accessible.
+- **Icône d'accès** : `bar_chart` dans la top app bar de l'Accueil, toujours visible (les onglets gèrent leurs états vides).
 
 ### Accessibilité
 

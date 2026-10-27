@@ -5,6 +5,7 @@ import fr.zaffran.tennisstats.domain.model.Match
 import fr.zaffran.tennisstats.domain.model.MatchResult
 import fr.zaffran.tennisstats.domain.model.MatchSummary
 import fr.zaffran.tennisstats.domain.model.Shot
+import fr.zaffran.tennisstats.domain.stats.MatchTally
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -18,6 +19,9 @@ interface MatchRepository {
 
     /** All completed matches, most recently played first. */
     fun observeCompletedMatches(): Flow<List<MatchSummary>>
+
+    /** All completed matches with the tally of their shots, most recently played first (history statistics). */
+    fun observeCompletedMatchTallies(): Flow<List<MatchTally>>
 
     fun observeMatch(matchId: String): Flow<Match?>
 

@@ -8,16 +8,16 @@ import kotlin.math.roundToInt
 /** Computes match statistics from its shots (functional spec §9). Pure functions. */
 object StatsCalculator {
 
-    fun computeStats(shots: List<Shot>): MatchStats {
-        val byType = shots.groupBy { it.type }
-        val forehand = byType[ShotType.FOREHAND]?.let(::strokeStats)
-        val backhand = byType[ShotType.BACKHAND]?.let(::strokeStats)
-        val specials = ShotType.SPECIAL_SHOTS.mapNotNull { type ->
-            byType[type]?.let { specialShotStats(type, it) }
-        }
+    fun computeStats(shots: List<Shot>): MatchStats = computeStats(ShotTally.of(shots))
+
+    /** Same statistics from a tally; the tally of several matches gives pooled statistics. */
+    fun computeStats(tally: ShotTally): MatchStats {
+        val forehand = strokeStats(tally, ShotType.FOREHAND)
+        val backhand = strokeStats(tally, ShotType.BACKHAND)
+        val specials = ShotType.SPECIAL_SHOTS.mapNotNull { specialShotStats(tally, it) }
         return MatchStats(
-            totalShots = shots.size,
-            serve = byType[ShotType.SERVE]?.let(::serveStats),
+            totalShots = tally.total,
+            serve = serveStats(tally),
             groundstrokes = if (forehand != null || backhand != null) GroundstrokeStats(forehand, backhand) else null,
             specialShots = specials.ifEmpty { null },
         )
@@ -26,28 +26,35 @@ object StatsCalculator {
     /** `round(part / total × 100)`, half up; null when [total] is 0. */
     fun percentage(part: Int, total: Int): Int? = if (total == 0) null else (part * 100.0 / total).roundToInt()
 
-    private fun serveStats(serves: List<Shot>): ServeStats {
-        val (second, first) = serves.partition { it.isSecondServe }
-        val firstIn = first.count { it.outcome.isServeIn }
-        val secondIn = second.count { it.outcome.isServeIn }
+    private fun serveStats(tally: ShotTally): ServeStats? {
+        if (tally.count { it.type == ShotType.SERVE } == 0) return null
+        fun serves(second: Boolean, predicate: (ShotOutcome) -> Boolean = { true }) =
+            tally.count { it.type == ShotType.SERVE && it.isSecondServe == second && predicate(it.outcome) }
+        val first = serves(second = false)
+        val firstIn = serves(second = false) { it.isServeIn }
+        val second = serves(second = true)
+        val secondIn = serves(second = true) { it.isServeIn }
         return ServeStats(
             firstServesIn = firstIn,
-            firstServes = first.size,
-            firstServePct = percentage(firstIn, first.size),
+            firstServes = first,
+            firstServePct = percentage(firstIn, first),
             secondServesIn = secondIn,
-            secondServes = second.size,
-            secondServePct = percentage(secondIn, second.size),
-            aces = serves.count { it.outcome == ShotOutcome.ACE },
-            doubleFaults = second.count { it.outcome.isMiss },
+            secondServes = second,
+            secondServePct = percentage(secondIn, second),
+            aces = tally.count { it.type == ShotType.SERVE && it.outcome == ShotOutcome.ACE },
+            doubleFaults = serves(second = true) { it.isMiss },
         )
     }
 
-    private fun strokeStats(shots: List<Shot>): StrokeStats {
-        val total = shots.size
-        val successful = shots.count { it.outcome.isSuccess }
-        val winners = shots.count { it.outcome == ShotOutcome.WINNER }
-        val net = shots.count { it.outcome == ShotOutcome.NET }
-        val out = shots.count { it.outcome == ShotOutcome.FAULT }
+    private fun strokeStats(tally: ShotTally, type: ShotType): StrokeStats? {
+        fun count(predicate: (ShotOutcome) -> Boolean = { true }) =
+            tally.count { it.type == type && predicate(it.outcome) }
+        val total = count()
+        if (total == 0) return null
+        val successful = count { it.isSuccess }
+        val winners = count { it == ShotOutcome.WINNER }
+        val net = count { it == ShotOutcome.NET }
+        val out = count { it == ShotOutcome.FAULT }
         return StrokeStats(
             total = total,
             successful = successful,
@@ -61,12 +68,19 @@ object StatsCalculator {
         )
     }
 
-    private fun specialShotStats(type: ShotType, shots: List<Shot>) = SpecialShotStats(
-        type = type,
-        total = shots.size,
-        successPct = percentage(shots.count { it.outcome.isSuccess }, shots.size)!!,
-    )
-
-    private val ShotOutcome.isServeIn: Boolean get() = this == ShotOutcome.IN || this == ShotOutcome.ACE
-    private val ShotOutcome.isSuccess: Boolean get() = this == ShotOutcome.IN || this == ShotOutcome.WINNER
+    private fun specialShotStats(tally: ShotTally, type: ShotType): SpecialShotStats? {
+        val total = tally.count { it.type == type }
+        if (total == 0) return null
+        return SpecialShotStats(
+            type = type,
+            total = total,
+            successPct = percentage(tally.count { it.type == type && it.outcome.isSuccess }, total)!!,
+        )
+    }
 }
+
+/** A serve that went in (an ace included). */
+internal val ShotOutcome.isServeIn: Boolean get() = this == ShotOutcome.IN || this == ShotOutcome.ACE
+
+/** A successful stroke (functional spec §9: `in` + `winner`). */
+internal val ShotOutcome.isSuccess: Boolean get() = this == ShotOutcome.IN || this == ShotOutcome.WINNER

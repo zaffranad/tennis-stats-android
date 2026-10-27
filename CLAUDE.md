@@ -2,7 +2,7 @@
 
 > **Ce fichier est la source de vérité de l'application. Après toute modification du code qui impacte une section (écran, composant, bouton, libellé, route, entité ou champ Room, dépendance), mettre CLAUDE.md à jour dans la même session de travail.**
 
-Références fonctionnelles et techniques (elles font foi en cas de doute) : `docs/SPEC-FONCTIONNELLE.md`, `docs/SPEC-TECHNIQUE.md`. Décisions prises hors spec : section « Décisions » du `README.md`.
+Références fonctionnelles et techniques (elles font foi en cas de doute) : `docs/SPEC-FONCTIONNELLE.md`, `docs/SPEC-TECHNIQUE.md`, `docs/SPEC-STATISTIQUES.md` (page « Statistiques »). Décisions prises hors spec : section « Décisions » du `README.md`.
 
 ---
 
@@ -27,7 +27,7 @@ Références fonctionnelles et techniques (elles font foi en cas de doute) : `do
 | RG-06 | « Annuler » le dernier coup, répétable jusqu'à 0, uniquement sur un match en cours. |
 | RG-07 | Supprimer un match terminé (confirmation obligatoire). |
 | RG-08 | Chaque coup est persisté immédiatement. |
-| RG-09 | Statistiques calculées à la volée depuis les coups, en direct pendant le match. |
+| RG-09 | Statistiques calculées à la volée depuis les coups, en direct pendant le match (y compris historique et évolution : aucune valeur agrégée stockée). |
 
 ---
 
@@ -51,7 +51,7 @@ Références fonctionnelles et techniques (elles font foi en cas de doute) : `do
 | Qualité | Android Lint, ktlint 1.8.0 via Spotless 8.10.4 (style `android_studio`, `.editorconfig`) | — |
 | CI | GitHub Actions `.github/workflows/ci.yml` : `spotlessCheck lint testDebugUnitTest assembleDebug` | — |
 
-Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, bibliothèques de graphiques, `material-icons-extended` (icônes en vector drawables).
+Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, bibliothèques de graphiques (graphique d'évolution en `Canvas`), `material-icons-extended` (icônes en vector drawables).
 
 ---
 
@@ -85,6 +85,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 - Tri des coups : `ORDER BY createdAt DESC, rowid DESC` (le plus récent d'abord, stable dans la même milliseconde).
 - `Converters` : `Instant` ↔ epoch millis. `Mappers.kt` : `toDomain()` / `toEntity()`.
 - `MatchWithShotCount` : `@Embedded MatchEntity` + `shotCount` (sous-requête `COUNT(*)`).
+- `ShotCountRow(matchId, type, outcome, isSecondServe, count)` : comptage groupé (pas une table) ; `List<ShotCountRow>.toTallies()` (`Mappers.kt`) → `Map<matchId, ShotTally>`.
 
 **DAO**
 
@@ -95,6 +96,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 | | `observeMatch(id): Flow<MatchEntity?>`, `getMatch(id)`, `getActiveMatch()` | lecture |
 | | `insert(match)`, `finishMatch(id, result, updatedAt): Int`, `deleteMatch(id): Int` | écriture (`finishMatch` ne touche qu'un match `in_progress`) |
 | `ShotDao` | `observeShots(matchId): Flow<List<ShotEntity>>` | alimente fil, compteur, stats, dérivation du n° de service |
+| | `observeCompletedShotCounts(): Flow<List<ShotCountRow>>` | `GROUP BY matchId, type, outcome, isSecondServe` des matchs `completed` (historique, évolution) |
 | | `getLastShot(matchId)`, `insertShot(shot)`, `deleteLastShot(matchId): Int` | écriture |
 
 ### 3.2 Domaine (`domain/model/`, Kotlin pur)
@@ -116,7 +118,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 
 ### 3.4 Repository (`data/repository/`)
 
-- `MatchRepository` (interface) → `OfflineMatchRepository` (Room). Méthodes : `observeActiveMatch`, `observeCompletedMatches`, `observeMatch`, `observeShots`, `createMatch(opponentName, opponentLevel)`, `addShot(matchId, ShotToRecord)`, `deleteLastShot(matchId)` (renvoie le coup supprimé ou `null`), `finishMatch(matchId, MatchResult)`, `deleteMatch(matchId)` (RG-05 et RG-07).
+- `MatchRepository` (interface) → `OfflineMatchRepository` (Room). Méthodes : `observeActiveMatch`, `observeCompletedMatches`, `observeCompletedMatchTallies` (`List<MatchTally>`, `playedAt DESC`), `observeMatch`, `observeShots`, `createMatch(opponentName, opponentLevel)`, `addShot(matchId, ShotToRecord)`, `deleteLastShot(matchId)` (renvoie le coup supprimé ou `null`), `finishMatch(matchId, MatchResult)`, `deleteMatch(matchId)` (RG-05 et RG-07).
 - Résultat : `RepositoryResult.Success(value)` / `RepositoryResult.Failure(MatchError)`. `MatchError` : `MatchAlreadyInProgress`, `OpponentNameRequired`, `MatchNotInProgress`, `MatchNotFound`. Les erreurs de stockage sont des exceptions (traduites en Snackbar/message par les ViewModels).
 - Horodatages via `Clock` (`SystemClock`), identifiants via `IdGenerator` (`UuidIdGenerator`), injectés par Hilt (`data/di/RepositoryModule.kt`, `DatabaseModule.kt`).
 
@@ -132,7 +134,8 @@ Single-activity (`MainActivity` : splash screen `core-splashscreen`, `enableEdge
 |---|---|---|---|
 | Accueil | `Home` (data object) | démarrage | — |
 | Nouveau match | `NewMatch` (data object) | FAB « Nouveau match » | « Démarrer » → `Match(id, INPUT)` en **retirant `NewMatch`** de la pile ; redirection identique si un match est déjà en cours à l'ouverture |
-| Match | `Match(matchId: String, initialTab: MatchTab)` | carte « en cours » (`INPUT`) ou ligne d'historique (`STATS`) | retour ; match supprimé ou introuvable → `popBackStack<Home>` |
+| Match | `Match(matchId: String, initialTab: MatchTab)` | carte « en cours » (`INPUT`) ou ligne d'historique (`STATS`) ; depuis Statistiques : « Ouvrir le match », ligne « Détail par match » | retour ; match supprimé ou introuvable → `popBackStack<Home>` |
+| Statistiques | `Stats` (data object) | icône « Statistiques » de la top app bar de l'Accueil | retour |
 
 `MatchTab` (`@Keep @Serializable enum`) : `INPUT` = onglet « Saisie », `STATS` = onglet « Statistiques ».
 
@@ -148,7 +151,7 @@ Les libellés entre « » sont les textes **exacts** affichés (ressource `strin
 
 | Zone / composant | Contenu affiché | Comportement |
 |---|---|---|
-| **Top app bar** (`TopAppBar`) | « Tennis Stats » (`home_title`) | pas de menu |
+| **Top app bar** (`TopAppBar`) | « Tennis Stats » (`home_title`) ; action icône `bar_chart` (contentDescription « Statistiques », `home_stats`) | pas de menu ; l'icône ouvre `Stats` (toujours visible) |
 | **Carte match en cours** (`ActiveMatchCard`) | badge « En cours » avec point pulsant (`MatchStatusBadge`), « vs {adversaire} », « Niveau : {libellé} » (si renseigné), date `dd/MM/yyyy` (icône `schedule`), « {n} coup(s) » (icône `monitoring`), « Reprendre le match » | visible si un match `in_progress` existe ; fond/contour vert ; toute la carte est cliquable → `Match(id, INPUT)` |
 | **Message d'information** | « Terminez le match en cours avant d'en démarrer un nouveau. » | visible si un match est en cours |
 | **Section « Derniers matchs »** (titre `heading`) | **tous** les matchs terminés, `playedAt` décroissant (`LazyColumn`) | — |
@@ -230,6 +233,42 @@ Mise à jour en direct. Aucun coup : « Aucune statistique disponible pour l'ins
 | « Coup droit » / « Revers » (une carte commune, sous-sections séparées par un trait ; chacune si ≥ 1 coup du type) | « Succès » — `pct(R, T)` — « sur {T} » — vert ; « Winners » — `pct(W, R)` — « sur succès » — émeraude ; « Filet » — `pct(N, T)` — rouge ; « Out » — `pct(O, T)` — orange |
 | « Coups spéciaux » (≥ 1 coup spécial) | une tuile par type joué, ordre Volée, Smash, Lob, Amorti : « {Type} » — `pct(R, T)` — « {T} coup(s) » — vert |
 
+
+### 5.4 Statistiques — `ui/stats/` (`StatsScreen` → `StatsContent`), `StatsViewModel`, `StatsUiState` (spec : `docs/SPEC-STATISTIQUES.md`)
+
+Top app bar : flèche retour (« Retour »), titre « Statistiques ». Onglets (`PrimaryTabRow`, `StatsTab`) : « Match » (`MATCH`, initial) / « Historique » (`HISTORY`) / « Évolution » (`EVOLUTION`). Onglet, période et indicateur sauvegardés (`SavedStateHandle`). Tout est observé en direct.
+
+**Onglet « Match »** (`FocusMatchTab.kt`) — match de référence (`FocusMatch`) = match en cours, sinon dernier match terminé.
+
+| Élément | Contenu | Comportement |
+|---|---|---|
+| `FocusMatchCard` | « Match en cours » / « Dernier match terminé », « vs {adversaire} » + `MatchStatusBadge`, « Niveau : … », « {date} · {n} coup(s) », bouton texte « Ouvrir le match » | → `Match(id, INPUT)` si en cours, sinon `Match(id, STATS)` |
+| sections du match | `matchStatsSections` (mêmes cartes que §5.3) ; aucun coup : « Aucune statistique disponible pour l'instant. » | — |
+| `ComparisonCard` | « — COMPARAISON — », « Par rapport à la moyenne de vos {n} autres matchs terminés » (1 : « Par rapport à votre 1 autre match terminé ») ; lignes : indicateur, valeur, « moy. {x} », écart « +5 pts » / « −0,5 » / « = » (vert = mieux, rouge = moins bien ; doubles fautes : plus bas = mieux) | si ≥ 1 indicateur comparable avec les **autres** matchs terminés (période ignorée) |
+| État vide | « Aucun match pour le moment. » / « Créez un match pour suivre ses statistiques. » (`StatsEmptyState`, icône `bar_chart`) | — |
+
+**Sélecteur de période** (`PeriodSelector`, `SingleChoiceSegmentedButtonRow`, onglets Historique et Évolution) : « Tous » / « 10 derniers » / « 5 derniers » (`StatsPeriod`), puis « {n} match(s) terminé(s) ». Seuls les matchs **terminés** comptent. Aucun : « Aucun match terminé pour le moment. » / « Les statistiques cumulées apparaîtront à la fin de votre premier match. »
+
+**Onglet « Historique »** (`HistoryTab.kt`)
+
+| Carte | Contenu |
+|---|---|
+| « — BILAN — » (`SummaryCard`) | « Matchs » ; « Victoires » (émeraude, sous-ligne « {pct}% ») ; « Défaites » (rouge) ; « Coups / match » (sous-ligne « {total} au total ») |
+| Service, Coup droit / Revers, Coups spéciaux | `matchStatsSections` sur tous les coups de la période (taux poolés) ; tuiles service « Aces / match » et « DF / match » (moyenne sur les matchs avec services, « 2,3 », sous-ligne « {total} au total ») |
+| « — VICTOIRES / DÉFAITES — » (`ResultSplitCard`) | tableau indicateur × « Victoires » / « Défaites » ; si ≥ 1 victoire et ≥ 1 défaite |
+
+**Onglet « Évolution »** (`EvolutionTab.kt`, `TrendChart.kt`)
+
+| Élément | Contenu | Comportement |
+|---|---|---|
+| `MetricSelector` (`FilterChip` défilants) | « 1er service », « 2e service », « Coup droit », « Revers », « Aces », « Doubles fautes », « Winners » (`StatMetric`) | un seul sélectionné (initial « 1er service ») |
+| `TrendChartCard` | titre indicateur + « en % » / « par match » ; encart « {date} · vs {adversaire} : {valeur} » ; `TrendChart` (courbe 2 dp couleur de l'indicateur, points colorés par résultat, moyenne en pointillés, grille 0 / milieu / max, dates premier/dernier) ; `TrendLegend` « Victoire » / « Défaite » / « Moyenne » | tap → point le plus proche sélectionné (défaut : dernier match) ; contentDescription « {indicateur} sur {n} matchs, du … au …, moyenne … » |
+| `TrendSummary` | « Moyenne », « Meilleur » (date), « Dernier » (date), « Tendance » (« 3 derniers » ; moyenne des 3 derniers − moyenne des précédents, « — » si < 4 points) | — |
+| < 2 points | « Au moins 2 matchs terminés avec cet indicateur sont nécessaires pour afficher une évolution. » | — |
+| « Détail par match » (`TrendMatchRow`) | « vs {adversaire} », date, valeur (+ « a/b » pour un taux), badge | plus récent en premier ; tap → `Match(id, STATS)` |
+
+Formatage commun (`StatsFormat.kt`) : `metricLabel`, `metricColor` (1er service violet, 2e service ambre, Coup droit bleu, Revers cyan, Aces émeraude, Doubles fautes rouge, Winners sarcelle), `periodLabel`, `metricValueText`, `aggregateText`, `decimalText`, `deltaText`, `deltaColor`, `completedMatchCountText`.
+
 ---
 
 ## 6. Machine à états de saisie et statistiques (domaine)
@@ -250,7 +289,9 @@ Ignorés (état inchangé) : colonne gauche en mode service, Winner en mode serv
 
 `deriveServeNumber(lastServe)` : 2 si le dernier service est un 1er service `fault`/`net`, sinon 1 ; `lastServeOf(shotsNewestFirst)`. Re-dérivé à l'ouverture de l'écran et après « Annuler ». `ShotInputState` et l'onglet sont sauvegardés dans le `SavedStateHandle` (prioritaires sur la re-dérivation après une mort de processus).
 
-**`domain/stats/`** — `StatsCalculator.computeStats(shots): MatchStats(totalShots, serve: ServeStats?, groundstrokes: GroundstrokeStats?(forehand, backhand), specialShots: List<SpecialShotStats>?)`. Section `null` = non affichée ; pourcentage `null` = « — ». `percentage(a, b) = round(a × 100 / b)` (demi vers le haut), `null` si `b = 0`.
+**`domain/stats/`** — `StatsCalculator.computeStats(shots | tally: ShotTally): MatchStats(totalShots, serve: ServeStats?, groundstrokes: GroundstrokeStats?(forehand, backhand), specialShots: List<SpecialShotStats>?)`. Section `null` = non affichée ; pourcentage `null` = « — ». `percentage(a, b) = round(a × 100 / b)` (demi vers le haut), `null` si `b = 0`.
+
+Multi-matchs (`docs/SPEC-STATISTIQUES.md`) : `ShotTally` (compte par `ShotKey(type, outcome, isSecondServe)`, additionnable, `ShotTally.of(shots)`, `Iterable<ShotTally>.sum()`) ; `MatchTally(match, tally)`. `StatMetric` (`isRate`, `higherIsBetter`) ; `MetricCalculator.valueOf(metric, tally): MetricValue?` (`part`, `total` null pour un volume ; null si la famille de coups n'a pas été saisie), `aggregate` (taux poolé arrondi à l'entier, volume = moyenne par match à 1 décimale), `compare` → `MetricComparison(metric, value, reference, delta)`, `isImprovement`. `StatsPeriod` (`ALL`, `LAST_10`, `LAST_5`, `select`). `HistoryCalculator.computeHistory(matches): HistoryStats?` (bilan, `pooled: MatchStats`, `acesPerMatch`, `doubleFaultsPerMatch`, `resultSplit: List<ResultSplitRow>?`). `TrendCalculator.computeTrend(metric, matchesNewestFirst): Trend(points chronologiques, average, best, last, change)` ; `Trend.canBeDrawn` = ≥ 2 points.
 
 ---
 
@@ -259,7 +300,7 @@ Ignorés (état inchangé) : colonne gauche en mode service, Winner en mode serv
 - `ui/theme/Theme.kt` : `TennisStatsTheme` (clair/sombre, **pas** de dynamic color), primaire indigo `#2E3A87`, tertiaire = violet de marque `#5B21B6`. `TennisStatsTheme.semanticColors` lit `LocalSemanticColors`.
 - `ui/theme/SemanticColors.kt` : `SemanticColor(container, content)` ; `SemanticColors` : `green` (En jeu), `emerald` (Winner, Ace, Victoire), `orange` (Out, Amorti), `red` (Filet, Défaite, Smash), `violet` (1er service), `amber` (2e service, Volée), `cyan` (Revers), `blue` (Coup droit), `teal` (Lob). Conteneurs sombres à 40 % d'opacité.
 - `ui/match/ShotPresentation.kt` : correspondances type/résultat → libellé (`shotTypeLabel`, `outcomeLabel`, `serveLabel`), icône (`shotTypeIcon`, `outcomeIcon`), couleur (`shotTypeColor`, `outcomeColor`, `recordedShotColor`) et textes (`shotFeedText` pour le fil, `shotFeedbackText` pour le bandeau).
-- Icônes : Material Symbols Outlined convertis en vector drawables `res/drawable/ic_*.xml` (`arrow_back`, `back_hand`, `bolt`, `cancel`, `check_circle`, `delete`, `emoji_events`, `fence`, `local_fire_department`, `monitoring`, `more_vert`, `north`, `north_east`, `play_arrow`, `schedule`, `south`, `south_east`, `sports_tennis`, `star`, `thumb_down`, `undo`).
+- Icônes : Material Symbols Outlined convertis en vector drawables `res/drawable/ic_*.xml` (`arrow_back`, `back_hand`, `bar_chart`, `bolt`, `cancel`, `check_circle`, `delete`, `emoji_events`, `fence`, `local_fire_department`, `monitoring`, `more_vert`, `north`, `north_east`, `play_arrow`, `schedule`, `south`, `south_east`, `sports_tennis`, `star`, `thumb_down`, `undo`).
 - Icône d'application : `mipmap-anydpi/ic_launcher(_round).xml` — fond `@color/brand_violet` (`#5B21B6`), premier plan `ic_launcher_foreground` (balle `#D4F53C`, coutures blanches), variante `ic_launcher_monochrome`. Splash : `Theme.TennisStats.Starting` (`res/values/themes.xml`).
 
 ---
@@ -270,19 +311,19 @@ Ignorés (état inchangé) : colonne gauche en mode service, Winner en mode serv
 app/src/main/java/fr/zaffran/tennisstats/
 ├── TennisStatsApplication.kt          @HiltAndroidApp
 ├── MainActivity.kt                    splash, edge-to-edge, TennisStatsNavHost
-├── navigation/  Routes.kt (Home, NewMatch, Match, MatchTab) · TennisStatsNavHost.kt
+├── navigation/  Routes.kt (Home, NewMatch, Stats, Match, MatchTab) · TennisStatsNavHost.kt
 ├── domain/
 │   ├── model/   ShotType · ShotOutcome · MatchStatus · MatchResult · OpponentLevel · Match · Shot · MatchSummary
 │   ├── input/   ShotInputState.kt (ShotInputState, Column, InputAction, ShotToRecord) · ShotInputReducer.kt (+ deriveServeNumber, lastServeOf)
-│   └── stats/   MatchStats.kt (MatchStats, ServeStats, GroundstrokeStats, StrokeStats, SpecialShotStats) · StatsCalculator.kt
+│   └── stats/   MatchStats.kt (MatchStats, ServeStats, GroundstrokeStats, StrokeStats, SpecialShotStats) · StatsCalculator.kt · ShotTally.kt (ShotKey, ShotTally, MatchTally) · StatMetric.kt (StatMetric, MetricValue, MetricCalculator, MetricComparison) · HistoryStats.kt (StatsPeriod, HistoryStats, ResultSplitRow, HistoryCalculator) · Trend.kt (TrendPoint, Trend, TrendCalculator)
 ├── data/
-│   ├── local/   TennisStatsDatabase · MatchEntity · ShotEntity · MatchWithShotCount · MatchDao · ShotDao · Converters · Mappers
+│   ├── local/   TennisStatsDatabase · MatchEntity · ShotEntity · MatchWithShotCount · ShotCountRow · MatchDao · ShotDao · Converters · Mappers
 │   ├── repository/  MatchRepository · OfflineMatchRepository · MatchError.kt (MatchError, RepositoryResult)
 │   ├── util/    Clock.kt (Clock, SystemClock) · IdGenerator.kt (IdGenerator, UuidIdGenerator)
 │   └── di/      DatabaseModule · RepositoryModule
 └── ui/
     ├── theme/       Color · Theme · Type · SemanticColors
-    ├── components/  MatchStatusBadge + PulsingDot (StatusBadge.kt) · StatTile · SectionHeader · Labels.kt (opponentLevelLabel, shotCountText, formatDate) · ThemePreviews
+    ├── components/  MatchStatusBadge + PulsingDot (StatusBadge.kt) · StatTile · SectionHeader · StatsCard.kt (StatsCard, StatTileRow, percentText) · Labels.kt (opponentLevelLabel, shotCountText, formatDate) · ThemePreviews
     ├── home/        HomeScreen (HomeContent, ActiveMatchCard, HistoryRow, EmptyHistory) · HomeViewModel · HomeUiState
     ├── newmatch/    NewMatchScreen (NewMatchContent, OpponentNameField, OpponentLevelField) · NewMatchViewModel (NewMatchUiState, NewMatchError, NewMatchEvent)
     └── match/
@@ -290,14 +331,15 @@ app/src/main/java/fr/zaffran/tennisstats/
         ├── input/   ShotTracker · ServeSelector · GroundstrokeColumns (colonnes + modificateurs) · FeedbackBanner
         ├── feed/    ShotFeed
         ├── finish/  FinishMatchSheet.kt (FinishMatchSheet, DeleteMatchDialog)
-        └── stats/   MatchStatsContent
+        └── stats/   MatchStatsContent (+ matchStatsSections, réutilisé par la page Statistiques)
+    └── stats/       StatsScreen (StatsContent, PeriodSelector, StatsEmptyState) · StatsViewModel · StatsUiState (StatsTab, FocusMatch) · FocusMatchTab (FocusMatchCard, ComparisonCard) · HistoryTab (SummaryCard, ResultSplitCard) · EvolutionTab (MetricSelector, TrendChartCard, TrendSummary, TrendMatchRow) · TrendChart (TrendChart, TrendLegend) · StatsFormat
 ```
 
 Tests :
 
-- `app/src/test/` (JVM) : `ShotInputReducerTest`, `DeriveServeNumberTest`, `StatsCalculatorTest`, `EnumValuesTest`, `HomeViewModelTest`, `NewMatchViewModelTest`, `MatchViewModelTest` ; utilitaires `testing/FakeMatchRepository`, `MainDispatcherRule`, `ShotFactory`.
-- `app/src/androidTest/` (instrumentés) : `TennisStatsDaoTest`, `OfflineMatchRepositoryTest` (Room in-memory), `HomeAndNewMatchContentTest`, `MatchScreenTest` (séquence « double faute » et parcours manuel jusqu'à « Victoire »).
-- Previews `@ThemePreviews` (clair + sombre) : ShotTracker (normal, 1er service, 2e service, modificateur, enregistrement), ShotFeed, statistiques, Accueil, Nouveau match, badges.
+- `app/src/test/` (JVM) : `ShotInputReducerTest`, `DeriveServeNumberTest`, `StatsCalculatorTest`, `MetricCalculatorTest`, `HistoryAndTrendTest`, `EnumValuesTest`, `HomeViewModelTest`, `NewMatchViewModelTest`, `MatchViewModelTest`, `StatsViewModelTest` ; utilitaires `testing/FakeMatchRepository`, `MainDispatcherRule`, `ShotFactory`.
+- `app/src/androidTest/` (instrumentés) : `TennisStatsDaoTest` (dont `observeCompletedShotCounts`), `OfflineMatchRepositoryTest` (Room in-memory), `HomeAndNewMatchContentTest`, `MatchScreenTest` (séquence « double faute » et parcours manuel jusqu'à « Victoire »).
+- Previews `@ThemePreviews` (clair + sombre) : ShotTracker (normal, 1er service, 2e service, modificateur, enregistrement), ShotFeed, statistiques, page Statistiques (3 onglets), Accueil, Nouveau match, badges.
 
 ---
 
@@ -322,7 +364,13 @@ Tests :
 | `FeedbackBanner` / `ShotFeedback` | bandeau de feedback de 2 s |
 | `FinishMatchSheet` | feuille « Terminer le match » |
 | `DeleteMatchDialog` | dialogue « Supprimer le match ? » |
-| `MatchStatsContent` | contenu de l'onglet « Statistiques » |
+| `MatchStatsContent` | contenu de l'onglet « Statistiques » de l'écran Match |
+| Stats / `StatsScreen` | page « Statistiques » (onglets « Match », « Historique », « Évolution ») |
+| match de référence (`FocusMatch`) | match de l'onglet « Match » : en cours, sinon dernier terminé |
+| indicateur (`StatMetric`) | 1er service, 2e service, Coup droit, Revers (taux) ; Aces, Doubles fautes, Winners (volumes par match) |
+| période (`StatsPeriod`) | « Tous » / « 10 derniers » / « 5 derniers » matchs terminés |
+| poolé | taux cumulé `pct(Σ réussis, Σ total)` (et non moyenne des pourcentages) |
+| tendance (`Trend.change`) | moyenne des 3 derniers matchs − moyenne des précédents |
 | `StatTile` / `SectionHeader` | tuile de statistique / titre de section « — TITRE — » |
 | `MatchStatusBadge` | badge « En cours » / « Victoire » / « Défaite » |
 | joueur suivi | joueur dont on saisit les coups (non nommé en V1) |

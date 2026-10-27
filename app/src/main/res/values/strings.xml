@@ -33,6 +33,7 @@
     <string name="home_new_match">Nouveau match</string>
     <string name="home_date_description">Date</string>
     <string name="home_shot_count_description">Nombre de coups</string>
+    <string name="home_stats">Statistiques</string>
 
     <!-- New match -->
     <string name="new_match_title">Nouveau match</string>
@@ -111,4 +112,61 @@
     <string name="stats_ratio">%1$d/%2$d</string>
     <string name="stats_out_of">sur %1$d</string>
     <string name="stats_of_successes">sur succès</string>
+
+    <!-- Statistics screen (statistics spec) -->
+    <string name="stats_title">Statistiques</string>
+    <string name="stats_tab_match">Match</string>
+    <string name="stats_tab_history">Historique</string>
+    <string name="stats_tab_evolution">Évolution</string>
+    <string name="stats_focus_in_progress">Match en cours</string>
+    <string name="stats_focus_last_completed">Dernier match terminé</string>
+    <string name="stats_open_match">Ouvrir le match</string>
+    <string name="stats_no_match_title">Aucun match pour le moment.</string>
+    <string name="stats_no_match_subtitle">Créez un match pour suivre ses statistiques.</string>
+    <string name="stats_no_completed_subtitle">Les statistiques cumulées apparaîtront à la fin de votre premier match.</string>
+    <string name="stats_section_comparison">Comparaison</string>
+    <!-- "match" + "s" when n ≠ 1 (see matchCountText). -->
+    <plurals name="stats_comparison_subtitle">
+        <item quantity="one">Par rapport à votre %d autre match terminé</item>
+        <item quantity="many">Par rapport à la moyenne de vos %d autres matchs terminés</item>
+        <item quantity="other">Par rapport à la moyenne de vos %d autres matchs terminés</item>
+    </plurals>
+    <plurals name="stats_completed_match_count">
+        <item quantity="one">%d match terminé</item>
+        <item quantity="many">%d matchs terminés</item>
+        <item quantity="other">%d matchs terminés</item>
+    </plurals>
+    <string name="stats_comparison_average">moy. %1$s</string>
+    <string name="stats_delta_points">%1$s pts</string>
+    <string name="stats_delta_equal">=</string>
+    <string name="stats_period_all">Tous</string>
+    <string name="stats_period_last_10">10 derniers</string>
+    <string name="stats_period_last_5">5 derniers</string>
+    <string name="stats_section_summary">Bilan</string>
+    <string name="stats_matches">Matchs</string>
+    <string name="stats_wins">Victoires</string>
+    <string name="stats_losses">Défaites</string>
+    <string name="stats_shots_per_match">Coups / match</string>
+    <string name="stats_total">%1$d au total</string>
+    <string name="stats_aces_per_match">Aces / match</string>
+    <string name="stats_double_faults_per_match">DF / match</string>
+    <string name="stats_section_result_split">Victoires / défaites</string>
+    <string name="metric_first_serve">1er service</string>
+    <string name="metric_second_serve">2e service</string>
+    <string name="metric_forehand">Coup droit</string>
+    <string name="metric_backhand">Revers</string>
+    <string name="metric_aces">Aces</string>
+    <string name="metric_double_faults">Doubles fautes</string>
+    <string name="metric_winners">Winners</string>
+    <string name="stats_unit_percent" formatted="false">en %</string>
+    <string name="stats_unit_per_match">par match</string>
+    <string name="stats_trend_not_enough">Au moins 2 matchs terminés avec cet indicateur sont nécessaires pour afficher une évolution.</string>
+    <string name="stats_average">Moyenne</string>
+    <string name="stats_best">Meilleur</string>
+    <string name="stats_last">Dernier</string>
+    <string name="stats_change">Tendance</string>
+    <string name="stats_change_subline">3 derniers</string>
+    <string name="stats_match_detail">Détail par match</string>
+    <string name="stats_chart_description">%1$s sur %2$d matchs, du %3$s au %4$s, moyenne %5$s</string>
+    <string name="stats_chart_selection">%1$s · vs %2$s&#160;: %3$s</string>
 </resources>
