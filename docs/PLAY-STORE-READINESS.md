@@ -64,7 +64,7 @@
 ## Corrections rapides (moins de 30 min chacune)
 
 - Libellés de boutons qui incluent la colonne — `ui/match/input/GroundstrokeColumns.kt`
-- Garde `isRecording` dans `onUndo()` et bouton « Annuler » désactivé pendant l'enregistrement d'un coup. Sans cela, on peut supprimer le mauvais coup — `ui/match/MatchViewModel.kt:123`, `ui/match/feed/ShotFeed.kt:70`
+- ~~Garde `isRecording` dans `onUndo()` et bouton « Annuler » désactivé pendant l'enregistrement d'un coup.~~ Fait : `MatchViewModel.deleteShot`, `MatchUiState.canDeleteShots`.
 - Fichiers de règles de sauvegarde et attributs correspondants dans le manifeste — `app/src/main/AndroidManifest.xml:7`
 - `consumeWindowInsets(innerPadding)` avant `imePadding()` — `ui/newmatch/NewMatchScreen.kt:108`
 - Ajout de `assembleRelease` ou `bundleRelease` à la CI pour détecter les régressions R8 — `.github/workflows/ci.yml`

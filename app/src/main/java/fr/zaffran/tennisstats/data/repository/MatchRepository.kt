@@ -37,6 +37,9 @@ interface MatchRepository {
     /** RG-06: deletes the most recent shot of an in-progress match; returns it, or null if there was none. */
     suspend fun deleteLastShot(matchId: String): RepositoryResult<Shot?>
 
+    /** RG-06: deletes one shot of an in-progress match; returns it, or null if it does not exist. */
+    suspend fun deleteShot(matchId: String, shotId: String): RepositoryResult<Shot?>
+
     /** RG-04: completes an in-progress match. */
     suspend fun finishMatch(matchId: String, result: MatchResult): RepositoryResult<Unit>
 

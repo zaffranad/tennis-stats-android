@@ -21,7 +21,7 @@ L'application ne compte **pas les points ni le score**. Elle mesure la **qualit�
 |---|---|
 | Saisie pendant le jeu, un échange dure quelques secondes | Un coup = **1 tap** (2 au maximum avec un modificateur). Aucune saisie au clavier pendant le match. |
 | L'observateur regarde le court, pas l'écran | Grandes zones tactiles à position fixe, codage couleur fort, retour haptique. |
-| Les erreurs de saisie sont fréquentes | **Annulation du dernier coup** en 1 tap, toujours visible. |
+| Les erreurs de saisie sont fréquentes | **Annulation du dernier coup** en 1 tap, toujours visible, **dans la barre de saisie** (à portée de pouce) ; suppression d'un des 5 derniers coups depuis le fil. |
 | Un match dure 1 à 3 h, en extérieur | Écran maintenu allumé pendant la saisie, données persistées à chaque coup (aucune perte si l'app est tuée). |
 | Utilisateur francophone | Interface **en français** uniquement. |
 
@@ -118,7 +118,7 @@ L'application ne compte **pas les points ni le score**. Elle mesure la **qualit�
 | RG-03 | On ne peut ajouter un coup qu'à un match `in_progress`. |
 | RG-04 | **Terminer** un match : `status = completed`, `result = win|loss`. Uniquement depuis `in_progress`. Irréversible en V1. |
 | RG-05 | **Annuler** un match en cours : supprime le match **et tous ses coups**, retour à l'accueil. Confirmation obligatoire. |
-| RG-06 | **Annuler le dernier coup** : supprime le coup le plus récent du match. Répétable jusqu'à 0 coup. **[ANDROID]** Uniquement si le match est en cours (le web l'autorise par erreur sur un match terminé). |
+| RG-06 | **Annuler le dernier coup** : supprime le coup le plus récent du match. Répétable jusqu'à 0 coup. **[ANDROID]** Uniquement si le match est en cours (le web l'autorise par erreur sur un match terminé). **[ANDROID]** On peut aussi supprimer **un coup précis** parmi les 5 derniers affichés par le fil, aux mêmes conditions. |
 | RG-07 | **[ANDROID]** **Supprimer un match terminé** : supprime le match et ses coups, après confirmation. |
 | RG-08 | Chaque coup est **persisté immédiatement** (pas de brouillon en mémoire). |
 | RG-09 | Les statistiques sont **calculées à la volée** à partir des coups (aucune valeur agrégée stockée) et sont consultables **pendant** le match (mise à jour en direct) et après. |
@@ -193,16 +193,16 @@ Pluriel : « 1 coup », « 0 coups », « 2 coups » (règle web : « coup » + 
 
 De haut en bas :
 
-1. **Fil du dernier coup (ShotFeed)**
-   - Libellé « Dernier coup ({N} total) ».
-   - Bouton texte **« Annuler »** (icône undo, couleur d'erreur) → RG-06. Visible uniquement si le match est en cours et N > 0. Désactivé pendant l'opération.
-   - Carte du dernier coup, teintée selon le résultat : point coloré + « {Type} → {Résultat} ».
+1. **Fil des derniers coups (ShotFeed)** — **[ANDROID]** (le web n'affiche que le dernier coup)
+   - Libellé « Derniers coups ({N} total) ».
+   - Liste compacte des **5 derniers coups**, le plus récent en haut, une ligne de 48 dp par coup : numéro du coup dans le match (N, N−1…), point coloré, « {Type} → {Résultat} ». La ligne du plus récent est teintée selon le résultat et en gras.
      - Pour un service, le type devient « Service (1er) » ou « Service (2e) ».
      - Un 2e service `fault`/`net` s'affiche **« Double faute »** (rouge foncé).
+   - Match en cours : chaque ligne a un bouton **✕** (contentDescription « Supprimer le coup {n} ({texte}) ») → supprime ce coup (RG-06), sans confirmation (l'action est annoncée par le bandeau). Désactivé pendant l'écriture ou la suppression d'un coup.
    - Si N = 0 : « Aucun coup enregistré. Commencez à saisir ! » (cadre en pointillés).
 2. **Barre de saisie (ShotTracker)** : fixée en bas de l'écran, au-dessus de la barre de navigation système (gestion des insets), visible **uniquement si le match est en cours**. Le contenu au-dessus défile si l'écran est petit ; la barre de saisie ne défile jamais.
 
-Si le match est terminé, l'onglet Saisie ne montre que le fil du dernier coup (sans « Annuler »).
+Si le match est terminé, l'onglet Saisie ne montre que le fil des derniers coups (sans bouton de suppression).
 
 ### 8.3 Barre de saisie (ShotTracker) — cœur de l'application
 
@@ -232,7 +232,7 @@ Si le match est terminé, l'onglet Saisie ne montre que le fil du dernier coup (
 | `activeMode` | `null` (normal) \| `SERVE` \| `VOLLEY` \| `SMASH` \| `LOB` \| `DROP_SHOT` | `null` |
 | `serveNumber` | `1` \| `2` | **Dérivé de la base** : `2` si le dernier coup de type `serve` du match est un 1er service (`isSecondServe = false`) en `fault` ou `net` ; sinon `1`. |
 
-> `serveNumber` est **re-dérivé** à l'ouverture de l'écran et après chaque « Annuler » ; `activeMode` n'est pas modifié par « Annuler ». L'état doit survivre à la rotation et à la mort du processus (`SavedStateHandle`).
+> `serveNumber` est **re-dérivé** à l'ouverture de l'écran et après chaque suppression de coup (« Annuler » ou ✕ du fil) ; `activeMode` n'est pas modifié par une suppression. L'état doit survivre à la rotation et à la mort du processus (`SavedStateHandle`).
 
 #### Sélecteur de service (ServeSelector)
 
@@ -289,6 +289,14 @@ Le modificateur sélectionné prend sa couleur, avec anneau et élévation ; les
   - service : « 1er service → Ace », « 2e service → En jeu », « 1er service → Out » ;
   - double faute : « Double faute ».
 - Couleur du bandeau = couleur du résultat.
+- Après une suppression de coup (« Annuler » ou ✕ du fil) : bandeau neutre (couleurs inversées, icône undo) « Annulé : {coup} » (ex. « Annulé : Volée → Filet ») + retour haptique.
+
+#### Bouton « Annuler » — [ANDROID]
+
+- Placé **dans la barre de saisie**, à droite du bandeau de feedback (bande de 48 dp en haut de la barre) : à portée de pouce, juste au-dessus du sélecteur de service, toujours au même endroit.
+- Bouton tonal **« Annuler »** (icône undo, fond `errorContainer`), contentDescription « Annuler le dernier coup » → RG-06.
+- Toujours affiché (position stable) ; **désactivé** si N = 0, pendant l'écriture d'un coup ou pendant une suppression.
+- Une suppression est **ignorée** pendant l'écriture d'un coup (on ne supprime jamais le mauvais coup) ; les taps de saisie sont ignorés pendant une suppression.
 
 #### Confort de saisie — [ANDROID]
 
@@ -425,6 +433,7 @@ Affichée si au moins un coup spécial existe. Une tuile par type joué, dans l'
 | Confirmation de suppression | Double tap | AlertDialog | Pattern Android |
 | Nouveau match si match en cours | Bouton grisé | FAB masqué + message | Pattern Material |
 | « Annuler » sur un match terminé | Possible (bug) | Interdit | Correction |
+| Fil des coups | Dernier coup seul, « Annuler » en haut du fil | 5 derniers coups supprimables ; « Annuler » dans la barre de saisie | Ergonomie (correction rapide d'une erreur) |
 | Affichage du niveau | Valeur brute | Libellé | Correction |
 | Erreur d'enregistrement d'un coup | Ignorée silencieusement | Snackbar | Correction |
 | Onglet initial d'un match terminé | Saisie | Statistiques | Ergonomie |

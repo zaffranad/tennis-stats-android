@@ -20,17 +20,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import fr.zaffran.tennisstats.R
 import fr.zaffran.tennisstats.ui.match.ShotFeedback
 import fr.zaffran.tennisstats.ui.match.outcomeIcon
 import fr.zaffran.tennisstats.ui.match.recordedShotColor
 import fr.zaffran.tennisstats.ui.match.shotFeedbackText
+import fr.zaffran.tennisstats.ui.theme.SemanticColor
 
-/** Animated confirmation of the last recorded shot, coloured by its outcome (shown 2 s). */
+/**
+ * Animated confirmation of the last recorded shot, coloured by its outcome, or of a deleted shot
+ * (« Annulé : … », neutral colour). Shown 2 s.
+ */
 @Composable
 fun FeedbackBanner(feedback: ShotFeedback?, modifier: Modifier = Modifier) {
     AnimatedContent(
@@ -43,7 +50,14 @@ fun FeedbackBanner(feedback: ShotFeedback?, modifier: Modifier = Modifier) {
         if (current == null) {
             Box(Modifier)
         } else {
-            val color = recordedShotColor(current.shot)
+            val color = if (current.isUndone) {
+                SemanticColor(
+                    container = MaterialTheme.colorScheme.inverseSurface,
+                    content = MaterialTheme.colorScheme.inverseOnSurface,
+                )
+            } else {
+                recordedShotColor(current.shot)
+            }
             Surface(
                 shape = CircleShape,
                 color = color.container,
@@ -57,11 +71,15 @@ fun FeedbackBanner(feedback: ShotFeedback?, modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Icon(painterResource(outcomeIcon(current.shot.outcome)), null, Modifier.size(18.dp))
+                    val icon = if (current.isUndone) R.drawable.ic_undo else outcomeIcon(current.shot.outcome)
+                    Icon(painterResource(icon), null, Modifier.size(18.dp))
+                    val text = shotFeedbackText(current.shot)
                     Text(
-                        text = shotFeedbackText(current.shot),
+                        text = if (current.isUndone) stringResource(R.string.feedback_undone, text) else text,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

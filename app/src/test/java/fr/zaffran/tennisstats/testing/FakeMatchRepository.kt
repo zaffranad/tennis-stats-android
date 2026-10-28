@@ -108,6 +108,14 @@ class FakeMatchRepository : MatchRepository {
         return Success(last)
     }
 
+    override suspend fun deleteShot(matchId: String, shotId: String): RepositoryResult<Shot?> {
+        beforeWrite()
+        inProgressError(matchId)?.let { return Failure(it) }
+        val shot = shots.value.firstOrNull { it.matchId == matchId && it.id == shotId }
+        if (shot != null) shots.update { it - shot }
+        return Success(shot)
+    }
+
     override suspend fun finishMatch(matchId: String, result: MatchResult): RepositoryResult<Unit> {
         beforeWrite()
         inProgressError(matchId)?.let { return Failure(it) }

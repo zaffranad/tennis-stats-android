@@ -12,13 +12,14 @@ data class MatchUiState(
     /** The match no longer exists (deleted): the screen goes back home. */
     val isMissing: Boolean = false,
     val shotCount: Int = 0,
-    val lastShot: Shot? = null,
+    /** The [MatchViewModel.RECENT_SHOT_COUNT] most recent shots, newest first (shot feed). */
+    val recentShots: List<Shot> = emptyList(),
     val stats: MatchStats = MatchStats(totalShots = 0, serve = null, groundstrokes = null, specialShots = null),
     val input: ShotInputState = ShotInputState(),
     val selectedTab: MatchTab = MatchTab.INPUT,
     /** A shot is being written: the input bar is disabled. */
     val isRecording: Boolean = false,
-    /** « Annuler » (last shot) is in progress. */
+    /** A shot is being deleted (« Annuler » or a row of the feed). */
     val isUndoing: Boolean = false,
     /** Finishing or deleting the match is in progress. */
     val isBusy: Boolean = false,
@@ -28,10 +29,16 @@ data class MatchUiState(
     val isDeleteDialogVisible: Boolean = false,
 ) {
     val isInProgress: Boolean get() = match?.isInProgress == true
+
+    /** « Annuler » and the feed's delete buttons are usable (RG-06). */
+    val canDeleteShots: Boolean get() = isInProgress && !isRecording && !isUndoing
 }
 
-/** A recorded shot to announce in the feedback banner; [id] distinguishes two identical shots. */
-data class ShotFeedback(val id: Long, val shot: Shot)
+/**
+ * A shot to announce in the feedback banner: recorded, or deleted when [isUndone] (« Annulé : … »).
+ * [id] distinguishes two identical shots.
+ */
+data class ShotFeedback(val id: Long, val shot: Shot, val isUndone: Boolean = false)
 
 sealed interface MatchEvent {
     data class ShowMessage(val message: MatchMessage) : MatchEvent

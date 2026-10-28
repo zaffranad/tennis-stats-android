@@ -138,6 +138,28 @@ class OfflineMatchRepositoryTest {
     }
 
     @Test
+    fun deleteShot_removesThatShotOnly() = runTest {
+        val match = createMatch()
+        val forehand = (repository.addShot(match.id, forehandIn) as RepositoryResult.Success).value
+        repository.addShot(match.id, ShotToRecord(ShotType.VOLLEY, ShotOutcome.NET, false))
+
+        assertThat(repository.deleteShot(match.id, forehand.id)).isEqualTo(RepositoryResult.Success(forehand))
+        assertThat(repository.observeShots(match.id).first().map { it.type }).containsExactly(ShotType.VOLLEY)
+        assertThat(repository.deleteShot(match.id, forehand.id)).isEqualTo(RepositoryResult.Success(null))
+    }
+
+    @Test
+    fun deleteShot_onCompletedMatch_isRefused() = runTest {
+        val match = createMatch()
+        val forehand = (repository.addShot(match.id, forehandIn) as RepositoryResult.Success).value
+        repository.finishMatch(match.id, MatchResult.WIN)
+
+        assertThat(repository.deleteShot(match.id, forehand.id))
+            .isEqualTo(RepositoryResult.Failure(MatchError.MatchNotInProgress))
+        assertThat(repository.observeShots(match.id).first()).hasSize(1)
+    }
+
+    @Test
     fun deleteLastShot_onCompletedMatch_isRefused() = runTest {
         val match = createMatch()
         repository.addShot(match.id, forehandIn)

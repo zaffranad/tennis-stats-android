@@ -73,7 +73,7 @@ class MatchViewModel(
             match = match,
             isMissing = match == null,
             shotCount = shots.size,
-            lastShot = shots.firstOrNull(),
+            recentShots = shots.take(RECENT_SHOT_COUNT),
             stats = StatsCalculator.computeStats(shots),
             input = inputState ?: ShotInputState(),
             selectedTab = t.selectedTab,
@@ -98,8 +98,8 @@ class MatchViewModel(
     /** Serve selector, modifiers and result buttons of the ShotTracker. */
     fun onInputAction(action: InputAction) {
         val current = input.value ?: return
-        // Anti double-tap: taps received while a shot is being written are ignored.
-        if (transient.value.isRecording) return
+        // Anti double-tap: taps received while a shot is being written (or deleted) are ignored.
+        if (transient.value.isRecording || transient.value.isUndoing) return
         val (next, shot) = ShotInputReducer.reduce(current, action)
         if (shot == null) {
             setInput(next)
@@ -119,15 +119,25 @@ class MatchViewModel(
         }
     }
 
-    /** « Annuler »: deletes the last shot and re-derives the serve number (the active mode is kept). */
-    fun onUndo() {
-        if (transient.value.isUndoing) return
+    /** « Annuler » (input bar): deletes the last shot. */
+    fun onUndo() = deleteShot { repository.deleteLastShot(matchId) }
+
+    /** Delete button of a feed row: deletes that shot. */
+    fun onDeleteShot(shotId: String) = deleteShot { repository.deleteShot(matchId, shotId) }
+
+    /**
+     * Deletes a shot, announces it (« Annulé : … ») and re-derives the serve number (the active mode is kept).
+     * Ignored while a shot is being written, so that the shot about to be recorded is never the one deleted.
+     */
+    private fun deleteShot(delete: suspend () -> RepositoryResult<Shot?>) {
+        if (transient.value.isUndoing || transient.value.isRecording) return
         transient.update { it.copy(isUndoing = true) }
         viewModelScope.launch {
-            val result = storage { repository.deleteLastShot(matchId) }
+            val result = storage(delete)
             if (result is RepositoryResult.Success) {
                 val serveNumber = deriveServeNumber(lastServeOf(repository.observeShots(matchId).first()))
                 input.value?.let { setInput(it.copy(serveNumber = serveNumber)) }
+                result.value?.let { showFeedback(it, isUndone = true) }
             } else {
                 _events.send(MatchEvent.ShowMessage(MatchMessage.UNEXPECTED))
             }
@@ -181,8 +191,8 @@ class MatchViewModel(
         }
     }
 
-    private fun showFeedback(shot: Shot) {
-        val feedback = ShotFeedback(nextFeedbackId++, shot)
+    private fun showFeedback(shot: Shot, isUndone: Boolean = false) {
+        val feedback = ShotFeedback(nextFeedbackId++, shot, isUndone)
         transient.update { it.copy(feedback = feedback) }
         feedbackJob?.cancel()
         feedbackJob = viewModelScope.launch {
@@ -224,6 +234,7 @@ class MatchViewModel(
 
     companion object {
         const val FEEDBACK_DURATION_MILLIS = 2_000L
+        const val RECENT_SHOT_COUNT = 5
         private const val STOP_TIMEOUT_MILLIS = 5_000L
         private const val KEY_MODE = "input.activeMode"
         private const val KEY_SERVE_NUMBER = "input.serveNumber"

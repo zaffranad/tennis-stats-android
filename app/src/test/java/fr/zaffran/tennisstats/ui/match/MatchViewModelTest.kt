@@ -83,7 +83,7 @@ class MatchViewModelTest {
         assertThat(repository.shotsOf("m1").map { it.type to it.outcome })
             .containsExactly(ShotType.FOREHAND to ShotOutcome.WINNER)
         assertThat(state.shotCount).isEqualTo(1)
-        assertThat(state.lastShot!!.outcome).isEqualTo(ShotOutcome.WINNER)
+        assertThat(state.recentShots.single().outcome).isEqualTo(ShotOutcome.WINNER)
         assertThat(state.feedback!!.shot.type).isEqualTo(ShotType.FOREHAND)
         assertThat(state.input).isEqualTo(ShotInputState())
         assertThat(state.isRecording).isFalse()
@@ -191,6 +191,80 @@ class MatchViewModelTest {
         vm.onUndo()
         assertThat(vm.uiState.value.shotCount).isEqualTo(0)
         assertThat(vm.uiState.value.input).isEqualTo(ShotInputState(activeMode = ShotType.LOB, serveNumber = 1))
+    }
+
+    @Test
+    fun undo_announcesTheDeletedShot() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val vm = viewModel()
+        vm.onInputAction(TapOutcome(Column.LEFT, ShotOutcome.NET))
+
+        vm.onUndo()
+
+        val feedback = vm.uiState.value.feedback!!
+        assertThat(feedback.isUndone).isTrue()
+        assertThat(feedback.shot.type to feedback.shot.outcome).isEqualTo(ShotType.BACKHAND to ShotOutcome.NET)
+    }
+
+    @Test
+    fun undo_isIgnoredWhileAShotIsBeingWritten() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        repository.seedShots(shot(ShotType.BACKHAND, ShotOutcome.IN, matchId = "m1"))
+        val vm = viewModel()
+        val gate = CompletableDeferred<Unit>()
+        repository.writeGate = gate
+
+        vm.onInputAction(TapOutcome(Column.RIGHT, ShotOutcome.IN))
+        assertThat(vm.uiState.value.canDeleteShots).isFalse()
+        vm.onUndo()
+        gate.complete(Unit)
+
+        assertThat(repository.shotsOf("m1").map { it.type }).containsExactly(ShotType.FOREHAND, ShotType.BACKHAND)
+    }
+
+    @Test
+    fun recentShots_areTheFiveMostRecent() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val seeded = List(7) { shot(ShotType.FOREHAND, ShotOutcome.IN, matchId = "m1") }
+        repository.seedShots(*seeded.toTypedArray())
+
+        val state = viewModel().uiState.value
+
+        assertThat(state.shotCount).isEqualTo(7)
+        assertThat(state.recentShots).containsExactlyElementsIn(seeded.takeLast(5).reversed()).inOrder()
+    }
+
+    @Test
+    fun deleteShot_removesThatShotAndRederivesServeNumber() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val fault = shot(ShotType.SERVE, ShotOutcome.FAULT, matchId = "m1")
+        val backhand = shot(ShotType.BACKHAND, ShotOutcome.IN, matchId = "m1")
+        repository.seedShots(fault, backhand)
+        val vm = viewModel()
+        assertThat(vm.uiState.value.input.serveNumber).isEqualTo(2)
+
+        // Deleting an older shot: the 1st serve fault is no longer the last serve → 1st serve.
+        vm.onDeleteShot(fault.id)
+
+        val state = vm.uiState.value
+        assertThat(state.recentShots).containsExactly(backhand)
+        assertThat(state.input.serveNumber).isEqualTo(1)
+        assertThat(state.feedback!!.shot).isEqualTo(fault)
+        assertThat(state.feedback.isUndone).isTrue()
+    }
+
+    @Test
+    fun deleteShot_onCompletedMatch_isRefused() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1", status = MatchStatus.COMPLETED, result = MatchResult.WIN))
+        val forehand = shot(ShotType.FOREHAND, ShotOutcome.IN, matchId = "m1")
+        repository.seedShots(forehand)
+        val vm = viewModel()
+
+        vm.events.test {
+            vm.onDeleteShot(forehand.id)
+            assertThat(awaitItem()).isEqualTo(MatchEvent.ShowMessage(MatchMessage.UNEXPECTED))
+        }
+        assertThat(repository.shotsOf("m1")).containsExactly(forehand)
     }
 
     @Test

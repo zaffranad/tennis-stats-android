@@ -73,8 +73,8 @@
     <string name="match_error_shot_not_saved">Impossible d\'enregistrer le coup</string>
 
     <!-- Shot feed -->
-    <string name="feed_last_shot">Dernier coup (%1$d total)</string>
-    <string name="feed_undo">Annuler</string>
+    <string name="feed_recent_shots">Derniers coups (%1$d total)</string>
+    <string name="feed_delete_shot">Supprimer le coup %1$d (%2$s)</string>
     <string name="feed_empty">Aucun coup enregistré. Commencez à saisir&#160;!</string>
     <string name="feed_serve_first">Service (1er)</string>
     <string name="feed_serve_second">Service (2e)</string>
@@ -84,6 +84,9 @@
     <!-- Shot tracker -->
     <string name="tracker_first_serve">1er service</string>
     <string name="tracker_second_serve">2e service</string>
+    <string name="tracker_undo">Annuler</string>
+    <string name="tracker_undo_description">Annuler le dernier coup</string>
+    <string name="feedback_undone">Annulé&#160;: %1$s</string>
 
     <!-- Finish match sheet -->
     <string name="finish_title">Terminer le match</string>

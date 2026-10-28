@@ -130,12 +130,13 @@ class MatchScreenTest {
         composeRule.onNodeWithTag("outcome_left_net").performClick()
         waitForBanner("Volée → Filet")
         waitIdleTracker()
-        composeRule.onNodeWithText("Dernier coup (4 total)").assertExists()
+        composeRule.onNodeWithText("Derniers coups (4 total)").assertExists()
 
-        composeRule.onNodeWithText("Annuler").performClick()
+        composeRule.onNodeWithTag("undo_last_shot").performClick()
         composeRule.waitUntil(3_000) {
-            composeRule.onAllNodes(hasText("Dernier coup (3 total)")).fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodes(hasText("Derniers coups (3 total)")).fetchSemanticsNodes().isNotEmpty()
         }
+        waitForBanner("Annulé\u00A0: Volée → Filet")
         composeRule.onNodeWithTag("last_shot").assert(hasAnyDescendant(hasText("Coup droit → Winner")))
 
         composeRule.onNodeWithText("Statistiques").performClick()
@@ -157,5 +158,23 @@ class MatchScreenTest {
         composeRule.onNodeWithText("Victoire").assertExists()
         composeRule.onNodeWithText("Terminer").assertDoesNotExist()
         composeRule.onNodeWithTag("shot_tracker").assertDoesNotExist()
+    }
+
+    @Test
+    fun deleteShot_fromFeed_removesThatShot() {
+        composeRule.onNodeWithTag("outcome_left_fault").performClick()
+        waitForBanner("Revers → Out")
+        waitIdleTracker()
+        composeRule.onNodeWithTag("outcome_right_winner").performClick()
+        waitForBanner("Coup droit → Winner")
+        waitIdleTracker()
+
+        composeRule.onNodeWithTag("delete_shot_1").performClick()
+
+        composeRule.waitUntil(3_000) {
+            composeRule.onAllNodes(hasText("Derniers coups (1 total)")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("last_shot").assert(hasAnyDescendant(hasText("Coup droit → Winner")))
+        composeRule.onNodeWithText("Revers → Out").assertDoesNotExist()
     }
 }

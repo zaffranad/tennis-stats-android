@@ -99,6 +99,7 @@ fun MatchScreen(onBack: () -> Unit, onMatchDeleted: () -> Unit, viewModel: Match
         onTabSelected = viewModel::onTabSelected,
         onInputAction = viewModel::onInputAction,
         onUndo = viewModel::onUndo,
+        onDeleteShot = viewModel::onDeleteShot,
         onFinishClick = viewModel::onFinishClick,
         onDeleteClick = viewModel::onDeleteClick,
     )
@@ -139,6 +140,7 @@ fun MatchContent(
     onTabSelected: (MatchTab) -> Unit,
     onInputAction: (InputAction) -> Unit,
     onUndo: () -> Unit,
+    onDeleteShot: (shotId: String) -> Unit,
     onFinishClick: () -> Unit,
     onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -201,7 +203,7 @@ fun MatchContent(
                 }
             }
             when (uiState.selectedTab) {
-                MatchTab.INPUT -> InputTab(uiState, onInputAction, onUndo)
+                MatchTab.INPUT -> InputTab(uiState, onInputAction, onUndo, onDeleteShot)
 
                 MatchTab.STATS -> MatchStatsContent(
                     stats = uiState.stats,
@@ -218,7 +220,12 @@ fun MatchContent(
 }
 
 @Composable
-private fun InputTab(uiState: MatchUiState, onInputAction: (InputAction) -> Unit, onUndo: () -> Unit) {
+private fun InputTab(
+    uiState: MatchUiState,
+    onInputAction: (InputAction) -> Unit,
+    onUndo: () -> Unit,
+    onDeleteShot: (shotId: String) -> Unit,
+) {
     Column(Modifier.fillMaxSize()) {
         // Scrolls on small screens; the input bar below never scrolls.
         Box(
@@ -229,10 +236,10 @@ private fun InputTab(uiState: MatchUiState, onInputAction: (InputAction) -> Unit
         ) {
             ShotFeed(
                 shotCount = uiState.shotCount,
-                lastShot = uiState.lastShot,
-                canUndo = uiState.isInProgress,
-                isUndoing = uiState.isUndoing,
-                onUndo = onUndo,
+                recentShots = uiState.recentShots,
+                canDelete = uiState.canDeleteShots,
+                onDeleteShot = { onDeleteShot(it.id) },
+                showDeleteButtons = uiState.isInProgress,
                 modifier = Modifier
                     .padding(16.dp)
                     .then(
@@ -251,7 +258,9 @@ private fun InputTab(uiState: MatchUiState, onInputAction: (InputAction) -> Unit
                 input = uiState.input,
                 isRecording = uiState.isRecording,
                 feedback = uiState.feedback,
+                canUndo = uiState.canDeleteShots && uiState.shotCount > 0,
                 onAction = onInputAction,
+                onUndo = onUndo,
             )
         }
     }

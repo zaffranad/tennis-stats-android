@@ -24,7 +24,7 @@ Références fonctionnelles et techniques (elles font foi en cas de doute) : `do
 | RG-03 | Ajout d'un coup uniquement sur un match `in_progress`. |
 | RG-04 | Terminer : `status = completed`, `result = win|loss`, uniquement depuis `in_progress`, irréversible. |
 | RG-05 | Annuler un match en cours = supprimer le match et ses coups (confirmation obligatoire). |
-| RG-06 | « Annuler » le dernier coup, répétable jusqu'à 0, uniquement sur un match en cours. |
+| RG-06 | « Annuler » le dernier coup, répétable jusqu'à 0, ou supprimer un coup précis (✕ du fil), uniquement sur un match en cours. |
 | RG-07 | Supprimer un match terminé (confirmation obligatoire). |
 | RG-08 | Chaque coup est persisté immédiatement. |
 | RG-09 | Statistiques calculées à la volée depuis les coups, en direct pendant le match (y compris historique et évolution : aucune valeur agrégée stockée). |
@@ -97,7 +97,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 | | `insert(match)`, `finishMatch(id, result, updatedAt): Int`, `deleteMatch(id): Int` | écriture (`finishMatch` ne touche qu'un match `in_progress`) |
 | `ShotDao` | `observeShots(matchId): Flow<List<ShotEntity>>` | alimente fil, compteur, stats, dérivation du n° de service |
 | | `observeCompletedShotCounts(): Flow<List<ShotCountRow>>` | `GROUP BY matchId, type, outcome, isSecondServe` des matchs `completed` (historique, évolution) |
-| | `getLastShot(matchId)`, `insertShot(shot)`, `deleteLastShot(matchId): Int` | écriture |
+| | `getLastShot(matchId)`, `getShot(matchId, shotId)`, `insertShot(shot)`, `deleteLastShot(matchId): Int`, `deleteShot(matchId, shotId): Int` | lecture / écriture |
 
 ### 3.2 Domaine (`domain/model/`, Kotlin pur)
 
@@ -118,7 +118,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 
 ### 3.4 Repository (`data/repository/`)
 
-- `MatchRepository` (interface) → `OfflineMatchRepository` (Room). Méthodes : `observeActiveMatch`, `observeCompletedMatches`, `observeCompletedMatchTallies` (`List<MatchTally>`, `playedAt DESC`), `observeMatch`, `observeShots`, `createMatch(opponentName, opponentLevel)`, `addShot(matchId, ShotToRecord)`, `deleteLastShot(matchId)` (renvoie le coup supprimé ou `null`), `finishMatch(matchId, MatchResult)`, `deleteMatch(matchId)` (RG-05 et RG-07).
+- `MatchRepository` (interface) → `OfflineMatchRepository` (Room). Méthodes : `observeActiveMatch`, `observeCompletedMatches`, `observeCompletedMatchTallies` (`List<MatchTally>`, `playedAt DESC`), `observeMatch`, `observeShots`, `createMatch(opponentName, opponentLevel)`, `addShot(matchId, ShotToRecord)`, `deleteLastShot(matchId)`, `deleteShot(matchId, shotId)` (renvoient le coup supprimé ou `null`), `finishMatch(matchId, MatchResult)`, `deleteMatch(matchId)` (RG-05 et RG-07).
 - Résultat : `RepositoryResult.Success(value)` / `RepositoryResult.Failure(MatchError)`. `MatchError` : `MatchAlreadyInProgress`, `OpponentNameRequired`, `MatchNotInProgress`, `MatchNotFound`. Les erreurs de stockage sont des exceptions (traduites en Snackbar/message par les ViewModels).
 - Horodatages via `Clock` (`SystemClock`), identifiants via `IdGenerator` (`UuidIdGenerator`), injectés par Hilt (`data/di/RepositoryModule.kt`, `DatabaseModule.kt`).
 
@@ -184,25 +184,27 @@ Le formulaire (nom, niveau) est conservé dans le `SavedStateHandle`.
 
 **Onglets** (`PrimaryTabRow`) : « Saisie » / « Statistiques ». Onglet initial = `initialTab` de la route ; après « Victoire »/« Défaite » → « Statistiques ». Onglet courant sauvegardé (`SavedStateHandle`).
 
-**Onglet « Saisie »** (`InputTab`) : fil du dernier coup (zone défilante) + barre de saisie fixée en bas (au-dessus de la barre de navigation système), **uniquement si le match est en cours**. Écran maintenu allumé (`KeepScreenOn`) tant que le match est en cours.
+**Onglet « Saisie »** (`InputTab`) : fil des derniers coups (zone défilante) + barre de saisie fixée en bas (au-dessus de la barre de navigation système), **uniquement si le match est en cours**. Écran maintenu allumé (`KeepScreenOn`) tant que le match est en cours.
 
 #### ShotFeed — `ui/match/feed/ShotFeed.kt`
 
 | Élément | Contenu | Comportement |
 |---|---|---|
-| Libellé | « Dernier coup ({N} total) » | — |
-| Bouton texte **« Annuler »** (icône `undo`, couleur d'erreur) | « Annuler » | visible si match en cours et N > 0, désactivé pendant l'opération → RG-06, puis re-dérivation du n° de service (le mode actif est conservé) |
-| Carte du dernier coup (`LastShotCard`, tag `last_shot`) | point coloré + « {Type} → {Résultat} » ; service : « Service (1er) → … » / « Service (2e) → … » ; 2e service `fault`/`net` : « Double faute » (rouge foncé = `colorScheme.error`) | teintée selon le résultat |
+| Libellé | « Derniers coups ({N} total) » (`feed_recent_shots`) | — |
+| Liste (`Surface` arrondie 12 dp, lignes séparées par un trait) | les **5** derniers coups (`MatchUiState.recentShots`, `MatchViewModel.RECENT_SHOT_COUNT`), le plus récent en haut | — |
+| Ligne de coup (`ShotRow`, 48 dp ; tag `last_shot` pour le plus récent, `shot_row` sinon) | numéro du coup dans le match (N, N−1…), point coloré, « {Type} → {Résultat} » ; service : « Service (1er) → … » / « Service (2e) → … » ; 2e service `fault`/`net` : « Double faute » (rouge foncé = `colorScheme.error`) | la plus récente est teintée selon le résultat et en gras |
+| Bouton **✕** de la ligne (`IconButton`, icône `close`, tag `delete_shot_{n}`, contentDescription « Supprimer le coup {n} ({texte}) ») | — | affiché si le match est en cours, désactivé si `!canDeleteShots` → supprime ce coup sans confirmation (RG-06), bandeau « Annulé : … », re-dérivation du n° de service (le mode actif est conservé) |
 | État vide (`EmptyFeed`) | « Aucun coup enregistré. Commencez à saisir ! » | cadre en pointillés |
 
 #### ShotTracker (barre de saisie) — `ui/match/input/`
 
-Disposition, de haut en bas : **bandeau de feedback** → **sélecteur de service** → **colonnes**.
+Disposition, de haut en bas : **bandeau de feedback + « Annuler »** → **sélecteur de service** → **colonnes**.
 
 | Composant (fichier) | Élément | Libellé / contenu | Comportement |
 |---|---|---|---|
-| `ShotTracker` (`ShotTracker.kt`, tag `shot_tracker`) | conteneur | `Surface` arrondie en haut, ombre | désactivée et à 50 % d'opacité pendant l'écriture d'un coup ; indicateur de progression en haut à droite ; taps ignorés (anti double-tap) |
-| `FeedbackBanner` (`FeedbackBanner.kt`, tag `feedback_banner`) | bandeau animé (bande réservée de 44 dp, ne masque aucun bouton) | « Coup droit → Winner », « Volée → Filet », « 1er service → Ace », « 2e service → En jeu », « 1er service → Out », « Double faute » | visible **2 s** (`MatchViewModel.FEEDBACK_DURATION_MILLIS`), remplacé à chaque coup ; couleur du résultat ; `liveRegion` ; vibration à chaque coup via l'API `Vibrator` (`ShotVibrator` : `EFFECT_HEAVY_CLICK`, impulsion de 40 ms avant API 29 ; permission `VIBRATE`), indépendante du réglage système « vibration au toucher » |
+| `ShotTracker` (`ShotTracker.kt`, tag `shot_tracker`) | conteneur | `Surface` arrondie en haut, ombre | désactivée et à 50 % d'opacité pendant l'écriture d'un coup ; indicateur de progression en haut à gauche ; taps ignorés pendant l'écriture ou la suppression d'un coup (anti double-tap) |
+| | bouton **« Annuler »** (`UndoButton`, `FilledTonalButton` `errorContainer`, icône `undo`, tag `undo_last_shot`, contentDescription « Annuler le dernier coup ») | « Annuler » (`tracker_undo`) | à droite du bandeau, toujours affiché ; désactivé si 0 coup, pendant l'écriture ou la suppression d'un coup → RG-06 (`MatchViewModel.onUndo`), bandeau « Annulé : … », re-dérivation du n° de service |
+| `FeedbackBanner` (`FeedbackBanner.kt`, tag `feedback_banner`) | bandeau animé (bande réservée de 48 dp partagée avec « Annuler », ne masque aucun bouton ; indicateur d'enregistrement à gauche) | « Coup droit → Winner », « Volée → Filet », « 1er service → Ace », « 2e service → En jeu », « 1er service → Out », « Double faute » ; après une suppression (`ShotFeedback.isUndone`) : « Annulé : {coup} » (couleurs `inverseSurface`, icône `undo`) | visible **2 s** (`MatchViewModel.FEEDBACK_DURATION_MILLIS`), remplacé à chaque coup ; couleur du résultat ; `liveRegion` ; vibration à chaque coup via l'API `Vibrator` (`ShotVibrator` : `EFFECT_HEAVY_CLICK`, impulsion de 40 ms avant API 29 ; permission `VIBRATE`), indépendante du réglage système « vibration au toucher » |
 | `ServeSelector` (`ServeSelector.kt`) | bouton **« 1er service »** (tag `serve_1`, pastille « 1 ») | actif : violet | tap : si (`SERVE`, 1) → désactive le mode service ; sinon → `SERVE`, n° 1 |
 | | bouton **« 2e service »** (tag `serve_2`, pastille « 2 ») | actif : ambre | tap : si (`SERVE`, 2) → désactive ; sinon → `SERVE`, n° 2 |
 | | contour du sélecteur | prend la couleur active | `semantics { selected }` sur chaque bouton |
@@ -287,7 +289,7 @@ Formatage commun (`StatsFormat.kt`) : `metricLabel`, `metricColor` (1er service 
 
 Ignorés (état inchangé) : colonne gauche en mode service, Winner en mode service, Ace hors mode service, `unforced_error`. Le nouvel état n'est appliqué par `MatchViewModel` **qu'après le succès** de l'écriture.
 
-`deriveServeNumber(lastServe)` : 2 si le dernier service est un 1er service `fault`/`net`, sinon 1 ; `lastServeOf(shotsNewestFirst)`. Re-dérivé à l'ouverture de l'écran et après « Annuler ». `ShotInputState` et l'onglet sont sauvegardés dans le `SavedStateHandle` (prioritaires sur la re-dérivation après une mort de processus).
+`deriveServeNumber(lastServe)` : 2 si le dernier service est un 1er service `fault`/`net`, sinon 1 ; `lastServeOf(shotsNewestFirst)`. Re-dérivé à l'ouverture de l'écran et après chaque suppression de coup (« Annuler » ou ✕ du fil). `ShotInputState` et l'onglet sont sauvegardés dans le `SavedStateHandle` (prioritaires sur la re-dérivation après une mort de processus).
 
 **`domain/stats/`** — `StatsCalculator.computeStats(shots | tally: ShotTally): MatchStats(totalShots, serve: ServeStats?, groundstrokes: GroundstrokeStats?(forehand, backhand), specialShots: List<SpecialShotStats>?)`. Section `null` = non affichée ; pourcentage `null` = « — ». `percentage(a, b) = round(a × 100 / b)` (demi vers le haut), `null` si `b = 0`.
 
@@ -300,7 +302,7 @@ Multi-matchs (`docs/SPEC-STATISTIQUES.md`) : `ShotTally` (compte par `ShotKey(ty
 - `ui/theme/Theme.kt` : `TennisStatsTheme` (clair/sombre, **pas** de dynamic color), primaire indigo `#2E3A87`, tertiaire = violet de marque `#5B21B6`. `TennisStatsTheme.semanticColors` lit `LocalSemanticColors`.
 - `ui/theme/SemanticColors.kt` : `SemanticColor(container, content)` ; `SemanticColors` : `green` (En jeu), `emerald` (Winner, Ace, Victoire), `orange` (Out, Amorti), `red` (Filet, Défaite, Smash), `violet` (1er service), `amber` (2e service, Volée), `cyan` (Revers), `blue` (Coup droit), `teal` (Lob). Conteneurs sombres à 40 % d'opacité.
 - `ui/match/ShotPresentation.kt` : correspondances type/résultat → libellé (`shotTypeLabel`, `outcomeLabel`, `serveLabel`), icône (`shotTypeIcon`, `outcomeIcon`), couleur (`shotTypeColor`, `outcomeColor`, `recordedShotColor`) et textes (`shotFeedText` pour le fil, `shotFeedbackText` pour le bandeau).
-- Icônes : Material Symbols Outlined convertis en vector drawables `res/drawable/ic_*.xml` (`arrow_back`, `back_hand`, `bar_chart`, `bolt`, `cancel`, `check_circle`, `delete`, `emoji_events`, `fence`, `local_fire_department`, `monitoring`, `more_vert`, `north`, `north_east`, `play_arrow`, `schedule`, `south`, `south_east`, `sports_tennis`, `star`, `thumb_down`, `undo`).
+- Icônes : Material Symbols Outlined convertis en vector drawables `res/drawable/ic_*.xml` (`arrow_back`, `back_hand`, `bar_chart`, `bolt`, `cancel`, `check_circle`, `close`, `delete`, `emoji_events`, `fence`, `local_fire_department`, `monitoring`, `more_vert`, `north`, `north_east`, `play_arrow`, `schedule`, `south`, `south_east`, `sports_tennis`, `star`, `thumb_down`, `undo`).
 - Icône d'application : `mipmap-anydpi/ic_launcher(_round).xml` — fond `@color/brand_violet` (`#5B21B6`), premier plan `ic_launcher_foreground` (balle `#D4F53C`, coutures blanches), variante `ic_launcher_monochrome`. Splash : `Theme.TennisStats.Starting` (`res/values/themes.xml`).
 
 ---
@@ -328,8 +330,8 @@ app/src/main/java/fr/zaffran/tennisstats/
     ├── newmatch/    NewMatchScreen (NewMatchContent, OpponentNameField, OpponentLevelField) · NewMatchViewModel (NewMatchUiState, NewMatchError, NewMatchEvent)
     └── match/
         ├── MatchScreen.kt (MatchScreen, MatchContent, InputTab, MatchTitle, MoreMenu, KeepScreenOn) · MatchViewModel.kt · MatchUiState.kt (MatchUiState, ShotFeedback, MatchEvent, MatchMessage) · ShotPresentation.kt · ShotVibrator.kt (ShotVibrator, rememberShotVibrator)
-        ├── input/   ShotTracker · ServeSelector · GroundstrokeColumns (colonnes + modificateurs) · FeedbackBanner
-        ├── feed/    ShotFeed
+        ├── input/   ShotTracker (+ UndoButton) · ServeSelector · GroundstrokeColumns (colonnes + modificateurs) · FeedbackBanner
+        ├── feed/    ShotFeed (+ ShotRow)
         ├── finish/  FinishMatchSheet.kt (FinishMatchSheet, DeleteMatchDialog)
         └── stats/   MatchStatsContent (+ matchStatsSections, réutilisé par la page Statistiques)
     └── stats/       StatsScreen (StatsContent, PeriodSelector, StatsEmptyState) · StatsViewModel · StatsUiState (StatsTab, FocusMatch) · FocusMatchTab (FocusMatchCard, ComparisonCard) · HistoryTab (SummaryCard, ResultSplitCard) · EvolutionTab (MetricSelector, TrendChartCard, TrendSummary, TrendMatchRow) · TrendChart (TrendChart, TrendLegend) · StatsFormat
@@ -338,8 +340,8 @@ app/src/main/java/fr/zaffran/tennisstats/
 Tests :
 
 - `app/src/test/` (JVM) : `ShotInputReducerTest`, `DeriveServeNumberTest`, `StatsCalculatorTest`, `MetricCalculatorTest`, `HistoryAndTrendTest`, `EnumValuesTest`, `HomeViewModelTest`, `NewMatchViewModelTest`, `MatchViewModelTest`, `StatsViewModelTest` ; utilitaires `testing/FakeMatchRepository`, `MainDispatcherRule`, `ShotFactory`.
-- `app/src/androidTest/` (instrumentés) : `TennisStatsDaoTest` (dont `observeCompletedShotCounts`), `OfflineMatchRepositoryTest` (Room in-memory), `HomeAndNewMatchContentTest` (dont l'icône « Statistiques »), `MatchScreenTest` (séquence « double faute » et parcours manuel jusqu'à « Victoire »), `StatsScreenTest` (onglets Match / Historique / Évolution sur Room in-memory).
-- Previews `@ThemePreviews` (clair + sombre) : ShotTracker (normal, 1er service, 2e service, modificateur, enregistrement), ShotFeed, statistiques, page Statistiques (3 onglets), Accueil, Nouveau match, badges.
+- `app/src/androidTest/` (instrumentés) : `TennisStatsDaoTest` (dont `observeCompletedShotCounts`), `OfflineMatchRepositoryTest` (Room in-memory), `HomeAndNewMatchContentTest` (dont l'icône « Statistiques »), `MatchScreenTest` (séquence « double faute », parcours manuel jusqu'à « Victoire », suppression d'un coup depuis le fil), `StatsScreenTest` (onglets Match / Historique / Évolution sur Room in-memory).
+- Previews `@ThemePreviews` (clair + sombre) : ShotTracker (normal, 1er service, 2e service, modificateur, enregistrement, annulation), ShotFeed, statistiques, page Statistiques (3 onglets), Accueil, Nouveau match, badges.
 
 ---
 
@@ -353,7 +355,8 @@ Tests :
 | `MatchTab.INPUT` / `MatchTab.STATS` | onglets « Saisie » / « Statistiques » |
 | `ActiveMatchCard` | carte « match en cours » de l'Accueil (« Reprendre le match ») |
 | `HistoryRow` | ligne de la section « Derniers matchs » |
-| `ShotFeed` | fil du dernier coup (« Dernier coup (N total) ») |
+| `ShotFeed` | fil des 5 derniers coups (« Derniers coups (N total) »), chacun supprimable |
+| `UndoButton` | bouton « Annuler » (dernier coup) de la barre de saisie |
 | `ShotTracker` | barre de saisie |
 | `ServeSelector` | sélecteur « 1er service » / « 2e service » |
 | `GroundstrokeColumns` | colonnes Revers / modificateurs / Coup droit-Service |
@@ -361,7 +364,7 @@ Tests :
 | modificateur (`ShotType.SPECIAL_SHOTS`) | « Volée », « Smash », « Lob », « Amorti » |
 | mode service (`activeMode = SERVE`) | la colonne droite enregistre des services |
 | `serveNumber` | 1er (1) ou 2e (2) service |
-| `FeedbackBanner` / `ShotFeedback` | bandeau de feedback de 2 s |
+| `FeedbackBanner` / `ShotFeedback` | bandeau de feedback de 2 s (coup enregistré, ou « Annulé : … » si `isUndone`) |
 | `FinishMatchSheet` | feuille « Terminer le match » |
 | `DeleteMatchDialog` | dialogue « Supprimer le match ? » |
 | `MatchStatsContent` | contenu de l'onglet « Statistiques » de l'écran Match |

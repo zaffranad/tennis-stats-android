@@ -97,6 +97,14 @@ class OfflineMatchRepository @Inject constructor(
         Success(last?.toDomain())
     }
 
+    override suspend fun deleteShot(matchId: String, shotId: String): RepositoryResult<Shot?> =
+        database.withTransaction {
+            requireInProgress(matchId)?.let { return@withTransaction Failure(it) }
+            val shot = shotDao.getShot(matchId, shotId)
+            if (shot != null) shotDao.deleteShot(matchId, shotId)
+            Success(shot?.toDomain())
+        }
+
     override suspend fun finishMatch(matchId: String, result: MatchResult): RepositoryResult<Unit> =
         database.withTransaction {
             requireInProgress(matchId)?.let { return@withTransaction Failure(it) }

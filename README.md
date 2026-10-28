@@ -65,7 +65,7 @@ Ce parcours est couvert par le code et automatisé jusqu'à « Victoire » par `
 3. **En jeu** (colonne droite) → bandeau « 2e service → En jeu », retour au mode normal.
 4. **Winner** (colonne droite, « Coup droit ») → « Coup droit → Winner ».
 5. Modificateur **« Volée »** → **Filet** (n'importe quelle colonne) → « Volée → Filet ».
-6. **« Annuler »** (en haut à droite du fil) → le dernier coup redevient « Coup droit → Winner », « Dernier coup (3 total) ».
+6. **« Annuler »** (en haut à droite de la barre de saisie) → bandeau « Annulé : Volée → Filet », le fil affiche « Derniers coups (3 total) » avec « Coup droit → Winner » en tête.
 7. Onglet **Statistiques** : Service 1er srv **0%** (0/1), 2e srv **100%** (1/1), Aces 0, Dbl. faute 0 ; Coup droit Succès **100%** (sur 1), Winners **100%** ; pas de section « Coups spéciaux ».
 8. **« Terminer »** (top app bar) → feuille « Terminer le match » → **« Victoire »** : badge « Victoire », onglet Statistiques, plus de barre de saisie.
 9. Retour → l'Accueil affiche le match dans **« Derniers matchs »** (« 3 coups », badge Victoire), le FAB « Nouveau match » est de nouveau visible.
@@ -107,7 +107,7 @@ Choix pris là où les spécifications ne tranchaient pas, ou écarts techniques
 
 - Les horodatages des entités sont des `Instant` côté Kotlin, convertis par `Converters` en **epoch millis (INTEGER)** : le schéma SQLite est celui de la spec.
 - Le repository renvoie une erreur supplémentaire **`MatchNotFound`** (en plus de `MatchAlreadyInProgress`, `OpponentNameRequired`, `MatchNotInProgress`).
-- `deleteLastShot` renvoie le coup supprimé, ou `null` s'il n'y en avait pas (ce n'est pas une erreur). `deleteMatch` sert à la fois à **RG-05** (annuler un match en cours) et à **RG-07** (supprimer un match terminé).
+- `deleteLastShot` et `deleteShot` renvoient le coup supprimé, ou `null` s'il n'y en avait pas (ce n'est pas une erreur). `deleteMatch` sert à la fois à **RG-05** (annuler un match en cours) et à **RG-07** (supprimer un match terminé).
 
 ### Interface
 
@@ -117,8 +117,10 @@ Choix pris là où les spécifications ne tranchaient pas, ou écarts techniques
 - **Message générique** « Une erreur est survenue. Réessayez. » pour les échecs de stockage hors enregistrement d'un coup (création, Annuler, Terminer, Supprimer).
 - **ExtendedFAB « Nouveau match »** avec la variante à contenu libre : avec Material 3 1.4, la variante `text`/`icon` masque son libellé aux services d'accessibilité.
 - **Champ « Niveau (classement) »** : libellé toujours placé au-dessus du champ, pour que le placeholder « Sélectionner un niveau » soit visible sans focus.
-- **Bandeau de feedback** : une bande de 44 dp lui est réservée en haut de la barre de saisie, pour qu'il ne masque jamais un bouton ; l'indicateur de progression d'enregistrement s'y affiche à droite.
-- **Fil du dernier coup** : « Service (1er) → Out » (format §8.2) ; **bandeau** : « 1er service → Out » (format §8.3).
+- **Bandeau de feedback** : une bande de 48 dp lui est réservée en haut de la barre de saisie, pour qu'il ne masque jamais un bouton ; l'indicateur de progression d'enregistrement s'y affiche à gauche, le bouton « Annuler » à droite.
+- **« Annuler » dans la barre de saisie** plutôt qu'en haut du fil : c'est là que se trouvent le pouce et le regard au moment de l'erreur. Toujours affiché (désactivé à 0 coup) pour garder une position fixe, mémorisable sans regarder.
+- **Suppression d'un coup du fil sans confirmation** : comme « Annuler », elle est annoncée par le bandeau « Annulé : … » et une vibration ; une confirmation ralentirait la correction pendant le jeu.
+- **Fil des derniers coups** : « Service (1er) → Out » (format §8.2) ; **bandeau** : « 1er service → Out » (format §8.3).
 - **Double faute** : couleur `colorScheme.error` (rouge foncé en clair, rose en sombre).
 - **Carte « Coup droit » / « Revers »** : pas de titre global ; chaque sous-section a son en-tête « — COUP DROIT — » / « — REVERS — », séparées par un trait.
 - **Navigation après suppression** : l'écran Match revient à l'Accueil dès que le match n'existe plus en base (couvre la suppression et un identifiant invalide).

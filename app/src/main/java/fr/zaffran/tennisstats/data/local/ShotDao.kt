@@ -26,6 +26,9 @@ interface ShotDao {
     @Query("SELECT * FROM shots WHERE matchId = :matchId ORDER BY createdAt DESC, rowid DESC LIMIT 1")
     suspend fun getLastShot(matchId: String): ShotEntity?
 
+    @Query("SELECT * FROM shots WHERE id = :shotId AND matchId = :matchId")
+    suspend fun getShot(matchId: String, shotId: String): ShotEntity?
+
     @Insert
     suspend fun insertShot(shot: ShotEntity)
 
@@ -38,4 +41,8 @@ interface ShotDao {
         """,
     )
     suspend fun deleteLastShot(matchId: String): Int
+
+    /** Deletes one shot of a match. Returns the number of deleted rows (0 if not found). */
+    @Query("DELETE FROM shots WHERE id = :shotId AND matchId = :matchId")
+    suspend fun deleteShot(matchId: String, shotId: String): Int
 }
