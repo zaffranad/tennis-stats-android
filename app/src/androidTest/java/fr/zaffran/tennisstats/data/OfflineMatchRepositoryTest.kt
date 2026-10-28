@@ -160,6 +160,32 @@ class OfflineMatchRepositoryTest {
     }
 
     @Test
+    fun setShotWinner_qualifiesSuccessOnly_andReverts() = runTest {
+        val match = createMatch()
+        val forehand = (repository.addShot(match.id, forehandIn) as RepositoryResult.Success).value
+        val serve = (
+            repository.addShot(match.id, ShotToRecord(ShotType.SERVE, ShotOutcome.IN, false))
+                as RepositoryResult.Success
+            ).value
+        val net = (
+            repository.addShot(match.id, ShotToRecord(ShotType.BACKHAND, ShotOutcome.NET, false))
+                as RepositoryResult.Success
+            ).value
+
+        assertThat(repository.setShotWinner(match.id, forehand.id, isWinner = true))
+            .isEqualTo(RepositoryResult.Success(forehand.copy(outcome = ShotOutcome.WINNER)))
+        assertThat(repository.setShotWinner(match.id, serve.id, isWinner = true))
+            .isEqualTo(RepositoryResult.Success(serve.copy(outcome = ShotOutcome.ACE)))
+        assertThat(
+            repository.setShotWinner(match.id, net.id, isWinner = true),
+        ).isEqualTo(RepositoryResult.Success(null))
+        assertThat(repository.setShotWinner(match.id, forehand.id, isWinner = false))
+            .isEqualTo(RepositoryResult.Success(forehand))
+        assertThat(repository.observeShots(match.id).first().map { it.outcome })
+            .containsExactly(ShotOutcome.NET, ShotOutcome.ACE, ShotOutcome.IN).inOrder()
+    }
+
+    @Test
     fun deleteLastShot_onCompletedMatch_isRefused() = runTest {
         val match = createMatch()
         repository.addShot(match.id, forehandIn)

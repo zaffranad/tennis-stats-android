@@ -17,6 +17,7 @@ import fr.zaffran.tennisstats.domain.model.MatchResult
 import fr.zaffran.tennisstats.domain.model.MatchStatus
 import fr.zaffran.tennisstats.domain.model.MatchSummary
 import fr.zaffran.tennisstats.domain.model.Shot
+import fr.zaffran.tennisstats.domain.model.winnerOutcome
 import fr.zaffran.tennisstats.domain.stats.MatchTally
 import fr.zaffran.tennisstats.domain.stats.ShotTally
 import javax.inject.Inject
@@ -103,6 +104,16 @@ class OfflineMatchRepository @Inject constructor(
             val shot = shotDao.getShot(matchId, shotId)
             if (shot != null) shotDao.deleteShot(matchId, shotId)
             Success(shot?.toDomain())
+        }
+
+    override suspend fun setShotWinner(matchId: String, shotId: String, isWinner: Boolean): RepositoryResult<Shot?> =
+        database.withTransaction {
+            requireInProgress(matchId)?.let { return@withTransaction Failure(it) }
+            val shot = shotDao.getShot(matchId, shotId)?.toDomain()
+            if (shot == null || !shot.isSuccess) return@withTransaction Success(null)
+            val qualified = shot.copy(outcome = winnerOutcome(shot, isWinner))
+            shotDao.updateOutcome(matchId, shotId, qualified.outcome.value)
+            Success(qualified)
         }
 
     override suspend fun finishMatch(matchId: String, result: MatchResult): RepositoryResult<Unit> =

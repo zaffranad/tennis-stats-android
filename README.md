@@ -61,10 +61,10 @@ Pour utiliser directement `connectedDebugAndroidTest` : ajouter l'utilisateur au
 Ce parcours est couvert par le code et automatisé jusqu'à « Victoire » par `MatchScreenTest.manualPath_untilVictory` :
 
 1. **Accueil** → ExtendedFAB **« Nouveau match »** → saisir le nom de l'adversaire (le clavier s'ouvre seul), choisir éventuellement un niveau → **« Démarrer »**.
-2. Écran **Match**, onglet **Saisie** : tap **« 1er service »** → **Out** (colonne droite). Le bandeau affiche « 1er service → Out », la barre passe en **2e service** (ambre).
-3. **En jeu** (colonne droite) → bandeau « 2e service → En jeu », retour au mode normal.
-4. **Winner** (colonne droite, « Coup droit ») → « Coup droit → Winner ».
-5. Modificateur **« Volée »** → **Filet** (n'importe quelle colonne) → « Volée → Filet ».
+2. Écran **Match**, onglet **Saisie** : tap **« 1er service »** → **Raté** (colonne droite) : la colonne affiche « Out » / « Filet » et le bandeau « Raté : Out ou Filet ? » → **Out**. Le bandeau affiche « 1er service → Out », la barre passe en **2e service** (ambre).
+3. **Réussi** (colonne droite) → bandeau « 2e service → En jeu », retour au mode normal.
+4. **Réussi** (colonne droite, « Coup droit ») → « Coup droit → En jeu », puis puce **« Winner »** (en haut, à côté de « Annuler ») → « Coup droit → Winner ».
+5. Modificateur **« Volée »** → **Raté** puis **Filet** (n'importe quelle colonne) → « Volée → Filet ».
 6. **« Annuler »** (en haut à droite de la barre de saisie) → bandeau « Annulé : Volée → Filet », le fil affiche « Derniers coups (3 total) » avec « Coup droit → Winner » en tête.
 7. Onglet **Statistiques** : Service 1er srv **0%** (0/1), 2e srv **100%** (1/1), Aces 0, Dbl. faute 0 ; Coup droit Succès **100%** (sur 1), Winners **100%** ; pas de section « Coups spéciaux ».
 8. **« Terminer »** (top app bar) → feuille « Terminer le match » → **« Victoire »** : badge « Victoire », onglet Statistiques, plus de barre de saisie.
@@ -118,6 +118,7 @@ Choix pris là où les spécifications ne tranchaient pas, ou écarts techniques
 - **ExtendedFAB « Nouveau match »** avec la variante à contenu libre : avec Material 3 1.4, la variante `text`/`icon` masque son libellé aux services d'accessibilité.
 - **Champ « Niveau (classement) »** : libellé toujours placé au-dessus du champ, pour que le placeholder « Sélectionner un niveau » soit visible sans focus.
 - **Bandeau de feedback** : une bande de 48 dp lui est réservée en haut de la barre de saisie, pour qu'il ne masque jamais un bouton ; l'indicateur de progression d'enregistrement s'y affiche à gauche, le bouton « Annuler » à droite.
+- **Saisie « Réussi » / « Raté »** (au lieu de 4 boutons) : 2 grandes cibles par colonne pour saisir sans regarder. Le winner se qualifie **après** le tap (puce disponible jusqu'au coup suivant, car on ne le sait qu'à la fin du point) ; le raté se qualifie **obligatoirement** en Out / Filet avant d'être enregistré. Les valeurs stockées restent celles du web (`in`, `winner`, `ace`, `fault`, `net`).
 - **« Annuler » dans la barre de saisie** plutôt qu'en haut du fil : c'est là que se trouvent le pouce et le regard au moment de l'erreur. Toujours affiché (désactivé à 0 coup) pour garder une position fixe, mémorisable sans regarder.
 - **Suppression d'un coup du fil sans confirmation** : comme « Annuler », elle est annoncée par le bandeau « Annulé : … » et une vibration ; une confirmation ralentirait la correction pendant le jeu.
 - **Fil des derniers coups** : « Service (1er) → Out » (format §8.2) ; **bandeau** : « 1er service → Out » (format §8.3).

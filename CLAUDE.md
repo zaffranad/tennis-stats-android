@@ -28,6 +28,7 @@ Références fonctionnelles et techniques (elles font foi en cas de doute) : `do
 | RG-07 | Supprimer un match terminé (confirmation obligatoire). |
 | RG-08 | Chaque coup est persisté immédiatement. |
 | RG-09 | Statistiques calculées à la volée depuis les coups, en direct pendant le match (y compris historique et évolution : aucune valeur agrégée stockée). |
+| RG-10 | Qualifier un coup réussi (`in`) en `winner` (`ace` pour un service) et inversement, uniquement sur un match en cours (`setShotWinner`). |
 
 ---
 
@@ -97,7 +98,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 | | `insert(match)`, `finishMatch(id, result, updatedAt): Int`, `deleteMatch(id): Int` | écriture (`finishMatch` ne touche qu'un match `in_progress`) |
 | `ShotDao` | `observeShots(matchId): Flow<List<ShotEntity>>` | alimente fil, compteur, stats, dérivation du n° de service |
 | | `observeCompletedShotCounts(): Flow<List<ShotCountRow>>` | `GROUP BY matchId, type, outcome, isSecondServe` des matchs `completed` (historique, évolution) |
-| | `getLastShot(matchId)`, `getShot(matchId, shotId)`, `insertShot(shot)`, `deleteLastShot(matchId): Int`, `deleteShot(matchId, shotId): Int` | lecture / écriture |
+| | `getLastShot(matchId)`, `getShot(matchId, shotId)`, `insertShot(shot)`, `deleteLastShot(matchId): Int`, `deleteShot(matchId, shotId): Int`, `updateOutcome(matchId, shotId, outcome): Int` | lecture / écriture |
 
 ### 3.2 Domaine (`domain/model/`, Kotlin pur)
 
@@ -109,7 +110,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 | `MatchResult` | `WIN("win")`, `LOSS("loss")` |
 | `OpponentLevel` | 29 niveaux du §3.3, `fromValue()` renvoie `null` pour une valeur inconnue |
 | `Match` | `id`, `opponentName`, `opponentLevel: String?`, `result`, `status`, `playedAt`, `createdAt`, `updatedAt` ; `isInProgress` |
-| `Shot` | `id`, `matchId`, `type`, `outcome`, `isSecondServe`, `createdAt` ; `isDoubleFault` = 2e service `fault`/`net` |
+| `Shot` | `id`, `matchId`, `type`, `outcome`, `isSecondServe`, `createdAt` ; `isDoubleFault` = 2e service `fault`/`net` ; `isSuccess` = `in`/`winner`/`ace` ; `isWinner` = `winner`/`ace` ; `winnerOutcome(shot, isWinner)` |
 | `MatchSummary` | `match` + `shotCount` (Accueil) |
 
 ### 3.3 Niveaux de l'adversaire (ordre d'affichage)
@@ -118,7 +119,7 @@ Exclus en V1 : réseau (Retrofit/Ktor), Firebase, authentification, DataStore, b
 
 ### 3.4 Repository (`data/repository/`)
 
-- `MatchRepository` (interface) → `OfflineMatchRepository` (Room). Méthodes : `observeActiveMatch`, `observeCompletedMatches`, `observeCompletedMatchTallies` (`List<MatchTally>`, `playedAt DESC`), `observeMatch`, `observeShots`, `createMatch(opponentName, opponentLevel)`, `addShot(matchId, ShotToRecord)`, `deleteLastShot(matchId)`, `deleteShot(matchId, shotId)` (renvoient le coup supprimé ou `null`), `finishMatch(matchId, MatchResult)`, `deleteMatch(matchId)` (RG-05 et RG-07).
+- `MatchRepository` (interface) → `OfflineMatchRepository` (Room). Méthodes : `observeActiveMatch`, `observeCompletedMatches`, `observeCompletedMatchTallies` (`List<MatchTally>`, `playedAt DESC`), `observeMatch`, `observeShots`, `createMatch(opponentName, opponentLevel)`, `addShot(matchId, ShotToRecord)`, `deleteLastShot(matchId)`, `deleteShot(matchId, shotId)` (renvoient le coup supprimé ou `null`), `setShotWinner(matchId, shotId, isWinner)` (RG-10, renvoie le coup modifié, `null` si introuvable ou raté), `finishMatch(matchId, MatchResult)`, `deleteMatch(matchId)` (RG-05 et RG-07).
 - Résultat : `RepositoryResult.Success(value)` / `RepositoryResult.Failure(MatchError)`. `MatchError` : `MatchAlreadyInProgress`, `OpponentNameRequired`, `MatchNotInProgress`, `MatchNotFound`. Les erreurs de stockage sont des exceptions (traduites en Snackbar/message par les ViewModels).
 - Horodatages via `Clock` (`SystemClock`), identifiants via `IdGenerator` (`UuidIdGenerator`), injectés par Hilt (`data/di/RepositoryModule.kt`, `DatabaseModule.kt`).
 
@@ -198,20 +199,22 @@ Le formulaire (nom, niveau) est conservé dans le `SavedStateHandle`.
 
 #### ShotTracker (barre de saisie) — `ui/match/input/`
 
-Disposition, de haut en bas : **bandeau de feedback + « Annuler »** → **sélecteur de service** → **colonnes**.
+Disposition, de haut en bas : **bandeau de feedback (ou invite « Raté ») + puce Winner/Ace + « Annuler »** → **sélecteur de service** → **colonnes « Réussi » / « Raté »**.
 
 | Composant (fichier) | Élément | Libellé / contenu | Comportement |
 |---|---|---|---|
 | `ShotTracker` (`ShotTracker.kt`, tag `shot_tracker`) | conteneur | `Surface` arrondie en haut, ombre | désactivée et à 50 % d'opacité pendant l'écriture d'un coup ; indicateur de progression en haut à gauche ; taps ignorés pendant l'écriture ou la suppression d'un coup (anti double-tap) |
-| | bouton **« Annuler »** (`UndoButton`, `FilledTonalButton` `errorContainer`, icône `undo`, tag `undo_last_shot`, contentDescription « Annuler le dernier coup ») | « Annuler » (`tracker_undo`) | à droite du bandeau, toujours affiché ; désactivé si 0 coup, pendant l'écriture ou la suppression d'un coup → RG-06 (`MatchViewModel.onUndo`), bandeau « Annulé : … », re-dérivation du n° de service |
+| | invite **« Raté : Out ou Filet ? »** (`MissPrompt`, tag `miss_prompt`, rouge, `liveRegion`) | — | remplace le bandeau tant qu'un « Raté » attend sa qualification (`ShotInputState.pendingMiss`) |
+| | puce **« Winner »** / **« Ace »** (`WinnerChip`, `FilterChip` émeraude, icône `star` / `bolt`, tag `qualify_winner`) | — | visible si le dernier coup est réussi (`MatchUiState.qualifiableShot`) et aucun « Raté » en attente, jusqu'au coup suivant ; tap → `MatchViewModel.onToggleWinner` (RG-10) : `in` ↔ `winner`/`ace`, bandeau + vibration ; sélectionnée si déjà qualifiée ; ne bloque pas la saisie |
+| | bouton **« Annuler »** (`UndoButton`, `FilledTonalButton` `errorContainer`, icône `undo`, tag `undo_last_shot`, contentDescription « Annuler le dernier coup ») | « Annuler » (`tracker_undo`) | à droite du bandeau, toujours affiché ; si un « Raté » est en attente, l'annule sans rien supprimer ; désactivé si 0 coup, pendant l'écriture ou la suppression d'un coup → RG-06 (`MatchViewModel.onUndo`), bandeau « Annulé : … », re-dérivation du n° de service |
 | `FeedbackBanner` (`FeedbackBanner.kt`, tag `feedback_banner`) | bandeau animé (bande réservée de 48 dp partagée avec « Annuler », ne masque aucun bouton ; indicateur d'enregistrement à gauche) | « Coup droit → Winner », « Volée → Filet », « 1er service → Ace », « 2e service → En jeu », « 1er service → Out », « Double faute » ; après une suppression (`ShotFeedback.isUndone`) : « Annulé : {coup} » (couleurs `inverseSurface`, icône `undo`) | visible **2 s** (`MatchViewModel.FEEDBACK_DURATION_MILLIS`), remplacé à chaque coup ; couleur du résultat ; `liveRegion` ; vibration à chaque coup via l'API `Vibrator` (`ShotVibrator` : `EFFECT_HEAVY_CLICK`, impulsion de 40 ms avant API 29 ; permission `VIBRATE`), indépendante du réglage système « vibration au toucher » |
 | `ServeSelector` (`ServeSelector.kt`) | bouton **« 1er service »** (tag `serve_1`, pastille « 1 ») | actif : violet | tap : si (`SERVE`, 1) → désactive le mode service ; sinon → `SERVE`, n° 1 |
 | | bouton **« 2e service »** (tag `serve_2`, pastille « 2 ») | actif : ambre | tap : si (`SERVE`, 2) → désactive ; sinon → `SERVE`, n° 2 |
 | | contour du sélecteur | prend la couleur active | `semantics { selected }` sur chaque bouton |
-| `GroundstrokeColumns` (`GroundstrokeColumns.kt`) | **colonne gauche** (collée au bord gauche, coins arrondis côté centre) | en-tête (tag `header_left`) « Revers » (cyan, icône `south_east`) ou « {modificateur} » | grisée et désactivée en mode service |
+| `GroundstrokeColumns` (`GroundstrokeColumns.kt`) | **colonne gauche** (collée au bord gauche, coins arrondis côté centre) | en-tête (tag `header_left`) « Revers » (cyan, icône `south_east`) ou « {modificateur} » | grisée et désactivée en mode service ou quand un « Raté » est en attente sur l'autre colonne |
 | | **colonne droite** (collée au bord droit) | en-tête (tag `header_right`) « Coup droit » (bleu, `north_east`), « 1er service » (violet) / « 2e service » (ambre) avec icône `bolt`, ou « {modificateur} » | — |
-| | **boutons de résultat** (64 dp, icône + libellé gras ; tags `outcome_left_{value}` / `outcome_right_{value}`) | « En jeu » (vert, `check_circle`, pleine largeur), « Winner » (émeraude, `star`) — remplacé par « Ace » (émeraude, `bolt`) en colonne droite en mode service —, « Out » (orange, `cancel`), « Filet » (rouge, `fence`) | Winner/Ace, Out, Filet en retrait de 20 dp côté bord extérieur ; tap → enregistre le coup (§6) |
-| | **colonne centrale** (~20 %) : modificateurs (tags `modifier_{value}`) | « Volée » (ambre, `back_hand`), « Smash » (rouge, `local_fire_department`), « Lob » (sarcelle, `north`), « Amorti » (orange, `south`) | tap : sélectionne (remplace le mode service ou un autre modificateur) / désélectionne ; sélectionné = couleur + anneau + élévation ; `semantics { selected }` |
+| | **boutons de résultat** (`ResultButton`, 112 dp, pleine largeur, icône 32 dp au-dessus du libellé gras, couleurs pleines ; contentDescription « {colonne} : {libellé} ») | **« Réussi »** (vert, `check_circle`, tag `outcome_{side}_in`) ; **« Raté »** (rouge, `close`, tag `miss_{side}`) ; après « Raté », dans la même colonne : **« Out »** (orange, `cancel`, tag `outcome_{side}_fault`) / **« Filet »** (rouge, `fence`, tag `outcome_{side}_net`) | « Réussi » → enregistre `in` ; « Raté » → `StartMiss` (rien d'enregistré, le reste de la barre est désactivé) ; « Out » / « Filet » → enregistre le raté (§6) |
+| | **colonne centrale** (~20 %) : modificateurs (tags `modifier_{value}`) | « Volée » (ambre, `back_hand`), « Smash » (rouge, `local_fire_department`), « Lob » (sarcelle, `north`), « Amorti » (orange, `south`) | désactivés si un « Raté » est en attente ; tap : sélectionne (remplace le mode service ou un autre modificateur) / désélectionne ; sélectionné = couleur + anneau + élévation ; `semantics { selected }` |
 
 #### Fin de match — `ui/match/finish/FinishMatchSheet.kt`
 
@@ -275,7 +278,7 @@ Formatage commun (`StatsFormat.kt`) : `metricLabel`, `metricColor` (1er service 
 
 ## 6. Machine à états de saisie et statistiques (domaine)
 
-**`domain/input/`** — `ShotInputState(activeMode: ShotType? = null, serveNumber: Int = 1)` ; `InputAction` = `ToggleServe(number)`, `ToggleModifier(type)`, `TapOutcome(column: Column, outcome)` ; `Column` = `LEFT`, `RIGHT` ; `ShotToRecord(type, outcome, isSecondServe)`.
+**`domain/input/`** — `ShotInputState(activeMode: ShotType? = null, serveNumber: Int = 1, pendingMiss: Column? = null)` ; `InputAction` = `ToggleServe(number)`, `ToggleModifier(type)`, `TapOutcome(column: Column, outcome)`, `StartMiss(column)` (« Raté »), `CancelMiss` ; `Column` = `LEFT`, `RIGHT` ; `ShotToRecord(type, outcome, isSecondServe)`.
 
 `ShotInputReducer.reduce(state, action): Pair<ShotInputState, ShotToRecord?>` (fonction pure) :
 
@@ -287,9 +290,11 @@ Formatage commun (`StatsFormat.kt`) : `metricLabel`, `metricColor` (1er service 
 | `SERVE`, n° 1 | `fault` / `net` | `serve`, `isSecondServe = false` | reste en `SERVE`, n° 2 |
 | `SERVE`, n° 2 | tout résultat | `serve`, `isSecondServe = true` | normal, n° 1 |
 
+« Raté » : `StartMiss(column)` → `pendingMiss = column` sans rien enregistrer (ignoré pour la colonne gauche en mode service) ; tant que `pendingMiss` est défini, seuls `TapOutcome(pendingMiss, fault|net)` (enregistre selon le tableau, `pendingMiss = null`) et `CancelMiss` sont pris en compte. La qualification winner (`in` → `winner`/`ace`) n'est pas une action du reducer : `MatchViewModel.onToggleWinner` → `MatchRepository.setShotWinner`.
+
 Ignorés (état inchangé) : colonne gauche en mode service, Winner en mode service, Ace hors mode service, `unforced_error`. Le nouvel état n'est appliqué par `MatchViewModel` **qu'après le succès** de l'écriture.
 
-`deriveServeNumber(lastServe)` : 2 si le dernier service est un 1er service `fault`/`net`, sinon 1 ; `lastServeOf(shotsNewestFirst)`. Re-dérivé à l'ouverture de l'écran et après chaque suppression de coup (« Annuler » ou ✕ du fil). `ShotInputState` et l'onglet sont sauvegardés dans le `SavedStateHandle` (prioritaires sur la re-dérivation après une mort de processus).
+`deriveServeNumber(lastServe)` : 2 si le dernier service est un 1er service `fault`/`net`, sinon 1 ; `lastServeOf(shotsNewestFirst)`. Re-dérivé à l'ouverture de l'écran et après chaque suppression de coup (« Annuler » ou ✕ du fil). `ShotInputState` (y compris `pendingMiss`) et l'onglet sont sauvegardés dans le `SavedStateHandle` (prioritaires sur la re-dérivation après une mort de processus).
 
 **`domain/stats/`** — `StatsCalculator.computeStats(shots | tally: ShotTally): MatchStats(totalShots, serve: ServeStats?, groundstrokes: GroundstrokeStats?(forehand, backhand), specialShots: List<SpecialShotStats>?)`. Section `null` = non affichée ; pourcentage `null` = « — ». `percentage(a, b) = round(a × 100 / b)` (demi vers le haut), `null` si `b = 0`.
 
@@ -330,7 +335,7 @@ app/src/main/java/fr/zaffran/tennisstats/
     ├── newmatch/    NewMatchScreen (NewMatchContent, OpponentNameField, OpponentLevelField) · NewMatchViewModel (NewMatchUiState, NewMatchError, NewMatchEvent)
     └── match/
         ├── MatchScreen.kt (MatchScreen, MatchContent, InputTab, MatchTitle, MoreMenu, KeepScreenOn) · MatchViewModel.kt · MatchUiState.kt (MatchUiState, ShotFeedback, MatchEvent, MatchMessage) · ShotPresentation.kt · ShotVibrator.kt (ShotVibrator, rememberShotVibrator)
-        ├── input/   ShotTracker (+ UndoButton) · ServeSelector · GroundstrokeColumns (colonnes + modificateurs) · FeedbackBanner
+        ├── input/   ShotTracker (+ MissPrompt, WinnerChip, UndoButton) · ServeSelector · GroundstrokeColumns (colonnes Réussi/Raté + modificateurs) · FeedbackBanner
         ├── feed/    ShotFeed (+ ShotRow)
         ├── finish/  FinishMatchSheet.kt (FinishMatchSheet, DeleteMatchDialog)
         └── stats/   MatchStatsContent (+ matchStatsSections, réutilisé par la page Statistiques)
@@ -341,7 +346,7 @@ Tests :
 
 - `app/src/test/` (JVM) : `ShotInputReducerTest`, `DeriveServeNumberTest`, `StatsCalculatorTest`, `MetricCalculatorTest`, `HistoryAndTrendTest`, `EnumValuesTest`, `HomeViewModelTest`, `NewMatchViewModelTest`, `MatchViewModelTest`, `StatsViewModelTest` ; utilitaires `testing/FakeMatchRepository`, `MainDispatcherRule`, `ShotFactory`.
 - `app/src/androidTest/` (instrumentés) : `TennisStatsDaoTest` (dont `observeCompletedShotCounts`), `OfflineMatchRepositoryTest` (Room in-memory), `HomeAndNewMatchContentTest` (dont l'icône « Statistiques »), `MatchScreenTest` (séquence « double faute », parcours manuel jusqu'à « Victoire », suppression d'un coup depuis le fil), `StatsScreenTest` (onglets Match / Historique / Évolution sur Room in-memory).
-- Previews `@ThemePreviews` (clair + sombre) : ShotTracker (normal, 1er service, 2e service, modificateur, enregistrement, annulation), ShotFeed, statistiques, page Statistiques (3 onglets), Accueil, Nouveau match, badges.
+- Previews `@ThemePreviews` (clair + sombre) : ShotTracker (normal, réussi + puce Winner, « Raté » en attente, 1er service, 2e service, modificateur, enregistrement, annulation), ShotFeed, statistiques, page Statistiques (3 onglets), Accueil, Nouveau match, badges.
 
 ---
 
@@ -359,7 +364,9 @@ Tests :
 | `UndoButton` | bouton « Annuler » (dernier coup) de la barre de saisie |
 | `ShotTracker` | barre de saisie |
 | `ServeSelector` | sélecteur « 1er service » / « 2e service » |
-| `GroundstrokeColumns` | colonnes Revers / modificateurs / Coup droit-Service |
+| `GroundstrokeColumns` | colonnes Revers / modificateurs / Coup droit-Service, boutons « Réussi » / « Raté » |
+| « Raté » en attente (`pendingMiss`) | « Raté » tapé, en attente de « Out » / « Filet » (obligatoire) |
+| qualification winner (`WinnerChip`, RG-10) | puce « Winner » / « Ace » qui requalifie le dernier coup réussi |
 | colonne gauche / droite (`Column.LEFT` / `RIGHT`) | Revers / Coup droit (ou Service) |
 | modificateur (`ShotType.SPECIAL_SHOTS`) | « Volée », « Smash », « Lob », « Amorti » |
 | mode service (`activeMode = SERVE`) | la colonne droite enregistre des services |

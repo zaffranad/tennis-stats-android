@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import fr.zaffran.tennisstats.domain.input.Column
+import fr.zaffran.tennisstats.domain.input.InputAction.StartMiss
 import fr.zaffran.tennisstats.domain.input.InputAction.TapOutcome
 import fr.zaffran.tennisstats.domain.input.InputAction.ToggleModifier
 import fr.zaffran.tennisstats.domain.input.InputAction.ToggleServe
@@ -265,6 +266,83 @@ class MatchViewModelTest {
             assertThat(awaitItem()).isEqualTo(MatchEvent.ShowMessage(MatchMessage.UNEXPECTED))
         }
         assertThat(repository.shotsOf("m1")).containsExactly(forehand)
+    }
+
+    @Test
+    fun miss_isRecordedOnlyOnceQualified_andUndoCancelsIt() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val vm = viewModel()
+
+        vm.onInputAction(StartMiss(Column.RIGHT))
+        assertThat(vm.uiState.value.input.pendingMiss).isEqualTo(Column.RIGHT)
+        assertThat(vm.uiState.value.canUndo).isTrue()
+        assertThat(repository.shotsOf("m1")).isEmpty()
+
+        vm.onUndo()
+        assertThat(vm.uiState.value.input.pendingMiss).isNull()
+        assertThat(repository.shotsOf("m1")).isEmpty()
+
+        vm.onInputAction(StartMiss(Column.RIGHT))
+        vm.onInputAction(TapOutcome(Column.RIGHT, ShotOutcome.NET))
+        assertThat(repository.shotsOf("m1").map { it.type to it.outcome })
+            .containsExactly(ShotType.FOREHAND to ShotOutcome.NET)
+        assertThat(vm.uiState.value.input.pendingMiss).isNull()
+    }
+
+    @Test
+    fun pendingMiss_survivesProcessDeath() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val handle = SavedStateHandle()
+        viewModel(handle).onInputAction(StartMiss(Column.LEFT))
+
+        assertThat(viewModel(handle).uiState.value.input.pendingMiss).isEqualTo(Column.LEFT)
+    }
+
+    @Test
+    fun winnerChip_qualifiesLastSuccessAndReverts() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val vm = viewModel()
+        vm.onInputAction(TapOutcome(Column.LEFT, ShotOutcome.IN))
+        assertThat(vm.uiState.value.qualifiableShot!!.outcome).isEqualTo(ShotOutcome.IN)
+
+        vm.onToggleWinner()
+        assertThat(repository.shotsOf("m1").single().outcome).isEqualTo(ShotOutcome.WINNER)
+        assertThat(vm.uiState.value.qualifiableShot!!.isWinner).isTrue()
+        assertThat(vm.uiState.value.feedback!!.shot.outcome).isEqualTo(ShotOutcome.WINNER)
+
+        vm.onToggleWinner()
+        assertThat(repository.shotsOf("m1").single().outcome).isEqualTo(ShotOutcome.IN)
+    }
+
+    @Test
+    fun winnerChip_onServe_qualifiesAsAce() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val vm = viewModel()
+        vm.onInputAction(ToggleServe(1))
+        vm.onInputAction(TapOutcome(Column.RIGHT, ShotOutcome.IN))
+
+        vm.onToggleWinner()
+
+        assertThat(repository.shotsOf("m1").single().outcome).isEqualTo(ShotOutcome.ACE)
+    }
+
+    @Test
+    fun winnerChip_isOfferedOnlyAfterASuccessAndUntilTheNextShot() = runMatchTest {
+        repository.seedMatch(testMatch(id = "m1"))
+        val vm = viewModel()
+        assertThat(vm.uiState.value.qualifiableShot).isNull()
+
+        vm.onInputAction(TapOutcome(Column.RIGHT, ShotOutcome.IN))
+        assertThat(vm.uiState.value.qualifiableShot).isNotNull()
+
+        // Hidden while a miss is pending, and gone once the miss is recorded.
+        vm.onInputAction(StartMiss(Column.LEFT))
+        assertThat(vm.uiState.value.qualifiableShot).isNull()
+        vm.onInputAction(TapOutcome(Column.LEFT, ShotOutcome.FAULT))
+        assertThat(vm.uiState.value.qualifiableShot).isNull()
+
+        vm.onToggleWinner()
+        assertThat(repository.shotsOf("m1").map { it.outcome }).containsExactly(ShotOutcome.FAULT, ShotOutcome.IN)
     }
 
     @Test

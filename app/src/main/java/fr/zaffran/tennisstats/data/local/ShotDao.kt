@@ -42,6 +42,10 @@ interface ShotDao {
     )
     suspend fun deleteLastShot(matchId: String): Int
 
+    /** Changes the outcome of one shot of a match. Returns the number of updated rows (0 if not found). */
+    @Query("UPDATE shots SET outcome = :outcome WHERE id = :shotId AND matchId = :matchId")
+    suspend fun updateOutcome(matchId: String, shotId: String, outcome: String): Int
+
     /** Deletes one shot of a match. Returns the number of deleted rows (0 if not found). */
     @Query("DELETE FROM shots WHERE id = :shotId AND matchId = :matchId")
     suspend fun deleteShot(matchId: String, shotId: String): Int
