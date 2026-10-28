@@ -122,6 +122,7 @@ L'application ne compte **pas les points ni le score**. Elle mesure la **qualit�
 | RG-07 | **[ANDROID]** **Supprimer un match terminé** : supprime le match et ses coups, après confirmation. |
 | RG-08 | Chaque coup est **persisté immédiatement** (pas de brouillon en mémoire). |
 | RG-09 | Les statistiques sont **calculées à la volée** à partir des coups (aucune valeur agrégée stockée) et sont consultables **pendant** le match (mise à jour en direct) et après. |
+| RG-10 | **[ANDROID]** **Qualifier un coup réussi en coup gagnant** : un coup `in` peut devenir `winner` (`ace` pour un service), et inversement, uniquement sur un match en cours. Seul le dernier coup est proposé par la barre de saisie. |
 
 ---
 
@@ -213,16 +214,21 @@ Si le match est terminé, l'onglet Saisie ne montre que le fil des derniers coup
 │  [① 1ER SERVICE]        │    [② 2E SERVICE]   │   ← Sélecteur de service
 ├───────────────┬─────────┬─────────────────────┤
 │  ↘ Revers     │ [Volée] │      Coup droit ↗   │   ← En-têtes de colonnes
-│  ✓ En jeu     │ [Smash] │      ✓ En jeu       │
-│  ★ Winner     │ [Lob]   │      ★ Winner       │
-│  ✗ Out        │ [Amorti]│      ✗ Out          │
-│  ≡ Filet      │         │      ≡ Filet        │
+│               │ [Smash] │                     │
+│   ✓ RÉUSSI    │         │      ✓ RÉUSSI       │
+│               │ [Lob]   │                     │
+│   ✕ RATÉ      │         │      ✕ RATÉ         │   ← après « Raté » : ✗ OUT / ≡ FILET
+│               │ [Amorti]│                     │
 └───────────────┴─────────┴─────────────────────┘
 ```
 
+**[ANDROID]** Le web propose 4 boutons par colonne (En jeu, Winner, Out, Filet). L'Android n'en garde que **2, plus grands** : le cas fréquent (coup réussi, non gagnant) se saisit en 1 tap, l'exception (coup gagnant) se qualifie après coup, et un coup raté doit obligatoirement être qualifié.
+
 - **Colonne gauche** (Revers) collée au bord gauche de l'écran, **colonne droite** (Coup droit / Service) collée au bord droit : correspond à la position du joueur vue par un observateur droitier. Les colonnes ont des coins arrondis côté centre.
 - **Colonne centrale** étroite (~20 % de la largeur) : 4 modificateurs empilés.
-- Boutons de résultat : hauteur **64 dp**, icône + libellé gras. Les boutons « Winner », « Out », « Filet » sont légèrement en retrait (≈ 20 dp) côté bord extérieur, « En jeu » occupe toute la largeur — cela crée un repère tactile qui distingue « En jeu », le résultat le plus fréquent.
+- Boutons de résultat : hauteur **112 dp**, pleine largeur de la colonne, icône au-dessus d'un libellé gras, couleurs pleines : **« Réussi »** (vert, ✓) au-dessus, **« Raté »** (rouge, ✕) en dessous. TalkBack les annonce « {colonne} : {libellé} » (ex. « Revers : Réussi »).
+- **« Réussi »** enregistre immédiatement `in`. Une puce discrète **« ★ Winner »** (**« ⚡ Ace »** pour un service) apparaît alors à côté de « Annuler » dans la bande du haut : un tap qualifie ce coup en `winner`/`ace` (RG-10), un second tap le remet en `in`. La puce **reste disponible jusqu'au coup suivant** (on ne sait qu'un coup est gagnant qu'à la fin du point) et disparaît dès qu'un autre coup est saisi : l'ignorer ne gêne pas la saisie.
+- **« Raté »** n'enregistre rien : dans cette colonne, « Réussi » / « Raté » sont remplacés au même endroit par **« Out »** (orange) / **« Filet »** (rouge). La bande du haut affiche « Raté : Out ou Filet ? » (rouge). Tant que le coup n'est pas qualifié, l'autre colonne, les modificateurs et le sélecteur de service sont **désactivés** ; « Annuler » annule le « Raté » (rien n'est enregistré). L'état est conservé à la rotation et à la mort du processus.
 - Toutes les cibles tactiles ≥ 48 dp.
 
 #### État de la barre
@@ -230,6 +236,7 @@ Si le match est terminé, l'onglet Saisie ne montre que le fil des derniers coup
 | État | Valeurs | Initialisation |
 |---|---|---|
 | `activeMode` | `null` (normal) \| `SERVE` \| `VOLLEY` \| `SMASH` \| `LOB` \| `DROP_SHOT` | `null` |
+| `pendingMiss` | `null` \| colonne | `null` ; colonne dont « Raté » attend sa qualification (jamais la colonne gauche en mode service). |
 | `serveNumber` | `1` \| `2` | **Dérivé de la base** : `2` si le dernier coup de type `serve` du match est un 1er service (`isSecondServe = false`) en `fault` ou `net` ; sinon `1`. |
 
 > `serveNumber` est **re-dérivé** à l'ouverture de l'écran et après chaque suppression de coup (« Annuler » ou ✕ du fil) ; `activeMode` n'est pas modifié par une suppression. L'état doit survivre à la rotation et à la mort du processus (`SavedStateHandle`).
@@ -258,11 +265,11 @@ Le modificateur sélectionné prend sa couleur, avec anneau et élévation ; les
 
 | `activeMode` | Colonne gauche | Colonne droite | Résultats colonne droite |
 |---|---|---|---|
-| `null` | « Revers » (cyan), active | « Coup droit » (bleu) | En jeu, Winner, Out, Filet |
-| `SERVE` | « Revers », **grisée et désactivée** | « 1er service » (violet) ou « 2e service » (ambre), icône éclair | En jeu, **Ace** (éclair), Out, Filet |
-| modificateur X | « X » (couleur de X), active | « X » (couleur de X) | En jeu, Winner, Out, Filet |
+| `null` | « Revers » (cyan), active | « Coup droit » (bleu) | Réussi, Raté (→ Out, Filet) ; puce Winner |
+| `SERVE` | « Revers », **grisée et désactivée** | « 1er service » (violet) ou « 2e service » (ambre), icône éclair | Réussi, Raté (→ Out, Filet) ; puce **Ace** |
+| modificateur X | « X » (couleur de X), active | « X » (couleur de X) | Réussi, Raté (→ Out, Filet) ; puce Winner |
 
-#### Enregistrement d'un coup (tap sur un bouton de résultat)
+#### Enregistrement d'un coup (« Réussi » = `in` ; « Raté » puis « Out » = `fault` / « Filet » = `net` ; puce = `winner` / `ace`)
 
 | Mode | Coup enregistré | Transition d'état après enregistrement |
 |---|---|---|

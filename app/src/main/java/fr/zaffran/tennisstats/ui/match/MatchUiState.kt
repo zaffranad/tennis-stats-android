@@ -21,6 +21,10 @@ data class MatchUiState(
     val isRecording: Boolean = false,
     /** A shot is being deleted (« Annuler » or a row of the feed). */
     val isUndoing: Boolean = false,
+    /** The last shot is being qualified as a winner (or back to `in`). */
+    val isQualifying: Boolean = false,
+    /** Last shot if it is a « Réussi » that can be qualified as a winner (« Winner » / « Ace » chip), else null. */
+    val qualifiableShot: Shot? = null,
     /** Finishing or deleting the match is in progress. */
     val isBusy: Boolean = false,
     /** Feedback banner of the last recorded shot, displayed 2 s. */
@@ -30,8 +34,11 @@ data class MatchUiState(
 ) {
     val isInProgress: Boolean get() = match?.isInProgress == true
 
-    /** « Annuler » and the feed's delete buttons are usable (RG-06). */
-    val canDeleteShots: Boolean get() = isInProgress && !isRecording && !isUndoing
+    /** « Annuler », the feed's delete buttons and the winner chip are usable (RG-06, RG-10). */
+    val canDeleteShots: Boolean get() = isInProgress && !isRecording && !isUndoing && !isQualifying
+
+    /** « Annuler » cancels a pending « Raté », or deletes the last shot. */
+    val canUndo: Boolean get() = input.pendingMiss != null || (canDeleteShots && shotCount > 0)
 }
 
 /**

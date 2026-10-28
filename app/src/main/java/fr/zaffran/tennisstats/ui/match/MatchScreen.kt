@@ -100,6 +100,7 @@ fun MatchScreen(onBack: () -> Unit, onMatchDeleted: () -> Unit, viewModel: Match
         onInputAction = viewModel::onInputAction,
         onUndo = viewModel::onUndo,
         onDeleteShot = viewModel::onDeleteShot,
+        onToggleWinner = viewModel::onToggleWinner,
         onFinishClick = viewModel::onFinishClick,
         onDeleteClick = viewModel::onDeleteClick,
     )
@@ -141,6 +142,7 @@ fun MatchContent(
     onInputAction: (InputAction) -> Unit,
     onUndo: () -> Unit,
     onDeleteShot: (shotId: String) -> Unit,
+    onToggleWinner: () -> Unit,
     onFinishClick: () -> Unit,
     onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -203,7 +205,7 @@ fun MatchContent(
                 }
             }
             when (uiState.selectedTab) {
-                MatchTab.INPUT -> InputTab(uiState, onInputAction, onUndo, onDeleteShot)
+                MatchTab.INPUT -> InputTab(uiState, onInputAction, onUndo, onDeleteShot, onToggleWinner)
 
                 MatchTab.STATS -> MatchStatsContent(
                     stats = uiState.stats,
@@ -225,6 +227,7 @@ private fun InputTab(
     onInputAction: (InputAction) -> Unit,
     onUndo: () -> Unit,
     onDeleteShot: (shotId: String) -> Unit,
+    onToggleWinner: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         // Scrolls on small screens; the input bar below never scrolls.
@@ -258,9 +261,12 @@ private fun InputTab(
                 input = uiState.input,
                 isRecording = uiState.isRecording,
                 feedback = uiState.feedback,
-                canUndo = uiState.canDeleteShots && uiState.shotCount > 0,
+                canUndo = uiState.canUndo,
+                qualifiableShot = uiState.qualifiableShot,
+                canQualify = uiState.canDeleteShots,
                 onAction = onInputAction,
                 onUndo = onUndo,
+                onToggleWinner = onToggleWinner,
             )
         }
     }

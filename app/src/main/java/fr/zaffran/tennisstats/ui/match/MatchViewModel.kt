@@ -7,6 +7,7 @@ import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import fr.zaffran.tennisstats.data.repository.MatchRepository
 import fr.zaffran.tennisstats.data.repository.RepositoryResult
+import fr.zaffran.tennisstats.domain.input.Column
 import fr.zaffran.tennisstats.domain.input.InputAction
 import fr.zaffran.tennisstats.domain.input.ShotInputReducer
 import fr.zaffran.tennisstats.domain.input.ShotInputState
@@ -79,6 +80,10 @@ class MatchViewModel(
             selectedTab = t.selectedTab,
             isRecording = t.isRecording,
             isUndoing = t.isUndoing,
+            isQualifying = t.isQualifying,
+            qualifiableShot = shots.firstOrNull()?.takeIf {
+                it.isSuccess && match?.isInProgress == true && inputState?.pendingMiss == null
+            },
             isBusy = t.isBusy,
             feedback = t.feedback,
             isFinishSheetVisible = t.isFinishSheetVisible,
@@ -99,6 +104,7 @@ class MatchViewModel(
     fun onInputAction(action: InputAction) {
         val current = input.value ?: return
         // Anti double-tap: taps received while a shot is being written (or deleted) are ignored.
+        // A winner qualification in flight targets a known shot and does not block the input.
         if (transient.value.isRecording || transient.value.isUndoing) return
         val (next, shot) = ShotInputReducer.reduce(current, action)
         if (shot == null) {
@@ -119,8 +125,30 @@ class MatchViewModel(
         }
     }
 
-    /** « Annuler » (input bar): deletes the last shot. */
-    fun onUndo() = deleteShot { repository.deleteLastShot(matchId) }
+    /** « Annuler » (input bar): cancels a pending « Raté », otherwise deletes the last shot. */
+    fun onUndo() {
+        if (input.value?.pendingMiss != null) {
+            onInputAction(InputAction.CancelMiss)
+        } else {
+            deleteShot { repository.deleteLastShot(matchId) }
+        }
+    }
+
+    /** « Winner » / « Ace » chip: qualifies the last « Réussi » as a winner, or back to `in` (RG-10). */
+    fun onToggleWinner() {
+        val shot = uiState.value.qualifiableShot ?: return
+        if (transient.value.isWriting) return
+        transient.update { it.copy(isQualifying = true) }
+        viewModelScope.launch {
+            val result = storage { repository.setShotWinner(matchId, shot.id, isWinner = !shot.isWinner) }
+            if (result is RepositoryResult.Success) {
+                result.value?.let { showFeedback(it) }
+            } else {
+                _events.send(MatchEvent.ShowMessage(MatchMessage.UNEXPECTED))
+            }
+            transient.update { it.copy(isQualifying = false) }
+        }
+    }
 
     /** Delete button of a feed row: deletes that shot. */
     fun onDeleteShot(shotId: String) = deleteShot { repository.deleteShot(matchId, shotId) }
@@ -130,7 +158,7 @@ class MatchViewModel(
      * Ignored while a shot is being written, so that the shot about to be recorded is never the one deleted.
      */
     private fun deleteShot(delete: suspend () -> RepositoryResult<Shot?>) {
-        if (transient.value.isUndoing || transient.value.isRecording) return
+        if (transient.value.isWriting) return
         transient.update { it.copy(isUndoing = true) }
         viewModelScope.launch {
             val result = storage(delete)
@@ -205,12 +233,14 @@ class MatchViewModel(
         input.value = state
         savedStateHandle[KEY_MODE] = state.activeMode?.value
         savedStateHandle[KEY_SERVE_NUMBER] = state.serveNumber
+        savedStateHandle[KEY_PENDING_MISS] = state.pendingMiss?.name
     }
 
     private fun restoreInput(): ShotInputState? {
         val serveNumber = savedStateHandle.get<Int>(KEY_SERVE_NUMBER) ?: return null
         val mode = savedStateHandle.get<String>(KEY_MODE)?.let(ShotType::fromValue)
-        return ShotInputState(activeMode = mode, serveNumber = serveNumber)
+        val pendingMiss = savedStateHandle.get<String>(KEY_PENDING_MISS)?.let(Column::valueOf)
+        return ShotInputState(activeMode = mode, serveNumber = serveNumber, pendingMiss = pendingMiss)
     }
 
     /** Runs a repository call; a storage failure (exception) is returned as null. */
@@ -226,11 +256,15 @@ class MatchViewModel(
         val selectedTab: MatchTab,
         val isRecording: Boolean = false,
         val isUndoing: Boolean = false,
+        val isQualifying: Boolean = false,
         val isBusy: Boolean = false,
         val feedback: ShotFeedback? = null,
         val isFinishSheetVisible: Boolean = false,
         val isDeleteDialogVisible: Boolean = false,
-    )
+    ) {
+        /** A shot is being written, deleted or qualified: other writes are ignored. */
+        val isWriting: Boolean get() = isRecording || isUndoing || isQualifying
+    }
 
     companion object {
         const val FEEDBACK_DURATION_MILLIS = 2_000L
@@ -238,6 +272,7 @@ class MatchViewModel(
         private const val STOP_TIMEOUT_MILLIS = 5_000L
         private const val KEY_MODE = "input.activeMode"
         private const val KEY_SERVE_NUMBER = "input.serveNumber"
+        private const val KEY_PENDING_MISS = "input.pendingMiss"
         private const val KEY_TAB = "selectedTab"
     }
 }

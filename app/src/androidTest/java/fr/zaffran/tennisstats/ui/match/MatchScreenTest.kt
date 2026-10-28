@@ -99,34 +99,45 @@ class MatchScreenTest {
         composeRule.onNodeWithTag("serve_1").performClick()
         header().assert(hasAnyDescendant(hasText("1er service")))
 
+        // « Raté » records nothing until it is qualified.
+        composeRule.onNodeWithTag("miss_right").performClick()
+        composeRule.onNodeWithTag("miss_prompt").assertExists()
         composeRule.onNodeWithTag("outcome_right_fault").performClick()
         waitForText("2e service", "header_right")
         composeRule.onNodeWithTag("serve_2").assert(selected)
         waitIdleTracker()
 
+        composeRule.onNodeWithTag("miss_right").performClick()
         composeRule.onNodeWithTag("outcome_right_net").performClick()
 
         waitForBanner("Double faute")
         waitForText("Coup droit", "header_right")
         composeRule.onNodeWithTag("serve_1").assert(notSelected)
         composeRule.onNodeWithTag("serve_2").assert(notSelected)
-        composeRule.onNodeWithTag("outcome_right_winner").assertExists()
+        composeRule.onNodeWithTag("miss_right").assertExists()
+        composeRule.onNodeWithTag("miss_prompt").assertDoesNotExist()
     }
 
     @Test
     fun manualPath_untilVictory() {
         composeRule.onNodeWithTag("serve_1").performClick()
+        composeRule.onNodeWithTag("miss_right").performClick()
         composeRule.onNodeWithTag("outcome_right_fault").performClick()
         waitForBanner("1er service → Out")
         waitIdleTracker()
         composeRule.onNodeWithTag("outcome_right_in").performClick()
         waitForBanner("2e service → En jeu")
         waitIdleTracker()
-        composeRule.onNodeWithTag("outcome_right_winner").performClick()
-        waitForBanner("Coup droit → Winner")
+        composeRule.onNodeWithTag("outcome_right_in").performClick()
+        waitForBanner("Coup droit → En jeu")
         waitIdleTracker()
+        // The rally is won: the forehand is qualified as a winner afterwards.
+        composeRule.onNodeWithTag("qualify_winner").performClick()
+        waitForBanner("Coup droit → Winner")
+        composeRule.onNodeWithTag("qualify_winner").assert(selected)
         composeRule.onNodeWithTag("modifier_volley").performClick()
         composeRule.onNodeWithTag("modifier_volley").assert(selected)
+        composeRule.onNodeWithTag("miss_left").performClick()
         composeRule.onNodeWithTag("outcome_left_net").performClick()
         waitForBanner("Volée → Filet")
         waitIdleTracker()
@@ -162,11 +173,12 @@ class MatchScreenTest {
 
     @Test
     fun deleteShot_fromFeed_removesThatShot() {
+        composeRule.onNodeWithTag("miss_left").performClick()
         composeRule.onNodeWithTag("outcome_left_fault").performClick()
         waitForBanner("Revers → Out")
         waitIdleTracker()
-        composeRule.onNodeWithTag("outcome_right_winner").performClick()
-        waitForBanner("Coup droit → Winner")
+        composeRule.onNodeWithTag("outcome_right_in").performClick()
+        waitForBanner("Coup droit → En jeu")
         waitIdleTracker()
 
         composeRule.onNodeWithTag("delete_shot_1").performClick()
@@ -174,7 +186,7 @@ class MatchScreenTest {
         composeRule.waitUntil(3_000) {
             composeRule.onAllNodes(hasText("Derniers coups (1 total)")).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithTag("last_shot").assert(hasAnyDescendant(hasText("Coup droit → Winner")))
+        composeRule.onNodeWithTag("last_shot").assert(hasAnyDescendant(hasText("Coup droit → En jeu")))
         composeRule.onNodeWithText("Revers → Out").assertDoesNotExist()
     }
 }

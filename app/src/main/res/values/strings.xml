@@ -84,6 +84,11 @@
     <!-- Shot tracker -->
     <string name="tracker_first_serve">1er service</string>
     <string name="tracker_second_serve">2e service</string>
+    <string name="tracker_success">Réussi</string>
+    <string name="tracker_miss">Raté</string>
+    <string name="tracker_miss_prompt">Raté&#160;: Out ou Filet&#160;?</string>
+    <!-- Spoken label of a column button, e.g. « Revers : Réussi » (the same label exists in both columns). -->
+    <string name="tracker_button_description">%1$s&#160;: %2$s</string>
     <string name="tracker_undo">Annuler</string>
     <string name="tracker_undo_description">Annuler le dernier coup</string>
     <string name="feedback_undone">Annulé&#160;: %1$s</string>

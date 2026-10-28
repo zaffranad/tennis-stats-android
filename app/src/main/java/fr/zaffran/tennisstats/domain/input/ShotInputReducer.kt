@@ -16,11 +16,36 @@ object ShotInputReducer {
     private val SERVE_OUTCOMES = setOf(ShotOutcome.IN, ShotOutcome.ACE, ShotOutcome.FAULT, ShotOutcome.NET)
 
     /** Returns the next state and the shot to record, if any. Invalid actions leave the state unchanged. */
-    fun reduce(state: ShotInputState, action: InputAction): Pair<ShotInputState, ShotToRecord?> = when (action) {
-        is InputAction.ToggleServe -> toggleServe(state, action.number) to null
-        is InputAction.ToggleModifier -> toggleModifier(state, action.type) to null
-        is InputAction.TapOutcome -> tapOutcome(state, action.column, action.outcome)
+    fun reduce(state: ShotInputState, action: InputAction): Pair<ShotInputState, ShotToRecord?> =
+        if (state.pendingMiss != null) {
+            reducePendingMiss(state, state.pendingMiss, action)
+        } else {
+            when (action) {
+                is InputAction.ToggleServe -> toggleServe(state, action.number) to null
+                is InputAction.ToggleModifier -> toggleModifier(state, action.type) to null
+                is InputAction.TapOutcome -> tapOutcome(state, action.column, action.outcome)
+                is InputAction.StartMiss -> startMiss(state, action.column) to null
+                InputAction.CancelMiss -> state to null
+            }
+        }
+
+    /** A pending miss must be qualified (« Out » / « Filet » of its column) or cancelled; anything else is ignored. */
+    private fun reducePendingMiss(
+        state: ShotInputState,
+        pending: Column,
+        action: InputAction,
+    ): Pair<ShotInputState, ShotToRecord?> = when {
+        action == InputAction.CancelMiss -> state.copy(pendingMiss = null) to null
+
+        action is InputAction.TapOutcome && action.column == pending && action.outcome.isMiss ->
+            tapOutcome(state.copy(pendingMiss = null), pending, action.outcome)
+
+        else -> state to null
     }
+
+    // The left column is disabled in serve mode.
+    private fun startMiss(state: ShotInputState, column: Column): ShotInputState =
+        if (state.isServeMode && column == Column.LEFT) state else state.copy(pendingMiss = column)
 
     private fun toggleServe(state: ShotInputState, number: Int): ShotInputState = when {
         number != 1 && number != 2 -> state

@@ -40,6 +40,12 @@ interface MatchRepository {
     /** RG-06: deletes one shot of an in-progress match; returns it, or null if it does not exist. */
     suspend fun deleteShot(matchId: String, shotId: String): RepositoryResult<Shot?>
 
+    /**
+     * RG-10: qualifies a successful shot of an in-progress match as a winner (`ace` for a serve) or, with
+     * [isWinner] false, back to `in`. Returns the updated shot, or null if it does not exist or was missed.
+     */
+    suspend fun setShotWinner(matchId: String, shotId: String, isWinner: Boolean): RepositoryResult<Shot?>
+
     /** RG-04: completes an in-progress match. */
     suspend fun finishMatch(matchId: String, result: MatchResult): RepositoryResult<Unit>
 

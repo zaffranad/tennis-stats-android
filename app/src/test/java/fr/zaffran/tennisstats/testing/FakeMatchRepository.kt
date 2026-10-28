@@ -11,6 +11,7 @@ import fr.zaffran.tennisstats.domain.model.MatchResult
 import fr.zaffran.tennisstats.domain.model.MatchStatus
 import fr.zaffran.tennisstats.domain.model.MatchSummary
 import fr.zaffran.tennisstats.domain.model.Shot
+import fr.zaffran.tennisstats.domain.model.winnerOutcome
 import fr.zaffran.tennisstats.domain.stats.MatchTally
 import fr.zaffran.tennisstats.domain.stats.ShotTally
 import java.io.IOException
@@ -114,6 +115,16 @@ class FakeMatchRepository : MatchRepository {
         val shot = shots.value.firstOrNull { it.matchId == matchId && it.id == shotId }
         if (shot != null) shots.update { it - shot }
         return Success(shot)
+    }
+
+    override suspend fun setShotWinner(matchId: String, shotId: String, isWinner: Boolean): RepositoryResult<Shot?> {
+        beforeWrite()
+        inProgressError(matchId)?.let { return Failure(it) }
+        val shot = shots.value.firstOrNull { it.matchId == matchId && it.id == shotId }
+        if (shot == null || !shot.isSuccess) return Success(null)
+        val qualified = shot.copy(outcome = winnerOutcome(shot, isWinner))
+        shots.update { list -> list.map { if (it == shot) qualified else it } }
+        return Success(qualified)
     }
 
     override suspend fun finishMatch(matchId: String, result: MatchResult): RepositoryResult<Unit> {

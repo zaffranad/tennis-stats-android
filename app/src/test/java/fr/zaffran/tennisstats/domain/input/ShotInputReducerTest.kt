@@ -1,6 +1,8 @@
 package fr.zaffran.tennisstats.domain.input
 
 import com.google.common.truth.Truth.assertThat
+import fr.zaffran.tennisstats.domain.input.InputAction.CancelMiss
+import fr.zaffran.tennisstats.domain.input.InputAction.StartMiss
 import fr.zaffran.tennisstats.domain.input.InputAction.TapOutcome
 import fr.zaffran.tennisstats.domain.input.InputAction.ToggleModifier
 import fr.zaffran.tennisstats.domain.input.InputAction.ToggleServe
@@ -236,4 +238,60 @@ class ShotInputReducerTest {
     fun invalidStateIsRejected() {
         ShotInputState(activeMode = ShotType.FOREHAND)
     }
+
+    // region « Raté » (pending miss)
+
+    @Test
+    fun startMiss_waitsForQualificationWithoutRecording() {
+        assertThat(reduce(normal, StartMiss(Column.LEFT))).isEqualTo(normal.copy(pendingMiss = Column.LEFT) to null)
+    }
+
+    @Test
+    fun pendingMiss_outOrNet_recordsMissOfThatColumn() {
+        val pending = normal.copy(pendingMiss = Column.LEFT)
+        assertThat(reduce(pending, TapOutcome(Column.LEFT, ShotOutcome.NET)))
+            .isEqualTo(normal to ShotToRecord(ShotType.BACKHAND, ShotOutcome.NET, isSecondServe = false))
+    }
+
+    @Test
+    fun pendingMiss_withModifier_recordsSpecialShotAndResetsMode() {
+        val pending = ShotInputState(activeMode = ShotType.SMASH, pendingMiss = Column.RIGHT)
+        assertThat(reduce(pending, TapOutcome(Column.RIGHT, ShotOutcome.FAULT)))
+            .isEqualTo(normal to ShotToRecord(ShotType.SMASH, ShotOutcome.FAULT, isSecondServe = false))
+    }
+
+    @Test
+    fun pendingMiss_onFirstServe_recordsFaultAndMovesToSecondServe() {
+        val pending = serve1.copy(pendingMiss = Column.RIGHT)
+        assertThat(reduce(pending, TapOutcome(Column.RIGHT, ShotOutcome.FAULT)))
+            .isEqualTo(serve2 to ShotToRecord(ShotType.SERVE, ShotOutcome.FAULT, isSecondServe = false))
+    }
+
+    @Test
+    fun pendingMiss_ignoresEverythingButItsQualificationAndCancel() {
+        val pending = ShotInputState(activeMode = ShotType.LOB, pendingMiss = Column.RIGHT)
+        listOf(
+            TapOutcome(Column.RIGHT, ShotOutcome.IN),
+            TapOutcome(Column.LEFT, ShotOutcome.NET),
+            StartMiss(Column.LEFT),
+            ToggleServe(1),
+            ToggleModifier(ShotType.VOLLEY),
+        ).forEach { action ->
+            assertThat(reduce(pending, action)).isEqualTo(pending to null)
+        }
+    }
+
+    @Test
+    fun cancelMiss_restoresStateWithoutRecording() {
+        val pending = serve2.copy(pendingMiss = Column.RIGHT)
+        assertThat(reduce(pending, CancelMiss)).isEqualTo(serve2 to null)
+        assertThat(reduce(normal, CancelMiss)).isEqualTo(normal to null)
+    }
+
+    @Test
+    fun startMiss_onLeftColumnInServeMode_isIgnored() {
+        assertThat(reduce(serve1, StartMiss(Column.LEFT))).isEqualTo(serve1 to null)
+    }
+
+    // endregion
 }
